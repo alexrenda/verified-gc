@@ -1,2 +1,2 @@
-# cs6115_final
+# CS 6115 Final
 Garbage Collection In Coq
