@@ -132,7 +132,7 @@ Definition small_step (c: com) (s: state) : option state :=
     end
   end.
 
-(** executing a while program, not sure if necessary *)
+(** executing a whole program, not sure if necessary *)
 Definition execute_program (program: list com): option state :=
   let fix execute (coms: list com) (s: state) := 
     match coms with
@@ -145,9 +145,4 @@ Definition execute_program (program: list com): option state :=
     end
   in
   execute program (nil, nil, nil).
-
-
-
-
-
 
