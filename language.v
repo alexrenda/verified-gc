@@ -10,7 +10,7 @@ Definition var_eq_dec := string_dec.
 
 (** Types of values we can have in the heap *)
 Inductive val : Type :=
-| Nat : nat -> val
+| Int : nat -> val
 | Pointer : ptr -> val
 | Struct : list val -> val.
 
@@ -18,7 +18,8 @@ Inductive val : Type :=
 Definition heap := list (ptr * val).
 
 Inductive valexp :=
-| Val : val -> valexp
+| IntExp : nat -> valexp
+| StructExp : list valexp -> valexp
 | VarRead : var -> valexp (** pointer associated with var *)
 | Deref : var -> valexp (** value associated with var *)
 | Index : var -> nat -> valexp.
@@ -52,11 +53,27 @@ match r with
 | (hv, hp)::t => if var_eq_dec hv v then Some hp else (roots_get v t)
 end.
 
-Definition eval_valexp (exp:valexp) (s:state) : option val :=
+Fixpoint optional_list_from_list_optional {A: Type} (l: list (option A)) : option (list A) :=
+  match l with 
+  | nil => Some nil
+  | h::t => 
+    match h, optional_list_from_list_optional t with
+    | None, _ => None
+    | _, None => None
+    | Some v, Some tl => Some (v::tl)
+    end
+  end.
+
+Fixpoint eval_valexp (exp:valexp) (s:state) : option val :=
   let roots := fst (fst s) in
   let heap := snd (fst s) in
     match exp with
-    | Val val => Some val (** just a value *)
+    | IntExp n => Some (Int n) (** just an int value *)
+    | StructExp l => (** a struct *)
+      match optional_list_from_list_optional (List.map (fun x => eval_valexp x s) l) with
+      | None => None
+      | Some vl => Some (Struct vl)
+      end
     | VarRead v => (** want the actual pointer *)
       match roots_get v roots with
       | None => None
@@ -127,7 +144,7 @@ Definition small_step (c: com) (s: state) : option state :=
   | Drop var => Some (remove_var var roots, heap, output)
   | Out vexp => (** vexp needs to evaluate to a nat *)
     match eval_valexp vexp s with
-    | Some (Nat n) => Some (roots, heap, n::output)
+    | Some (Int n) => Some (roots, heap, n::output)
     | _ => None
     end
   end.
