@@ -163,3 +163,13 @@ Definition execute_program (program: list com): option state :=
   in
   execute program (nil, nil, nil).
 
+
+Definition gc (s: state) : state :=
+  let roots := fst (fst s) in
+  let heap := snd (fst s) in
+  let output := snd s in
+
+
+Fixpoint mark (r: roots) (h: heap) (acc: list prt) : set ptr :=
+  .
+
