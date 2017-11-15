@@ -32,14 +32,18 @@ Inductive com :=
 
 (** roots is the top level var to pointers, output is ouput of the program *)
 Definition roots_t := list (var * ptr).
-Definition output_t := list nat.
 
-Record state := mkState {
-                    roots : roots_t;
-                    heap : heap_t;
-                    output: output_t;
-                    fuel: nat;
-                  }.
+Fixpoint roots_get (v:var) (r:roots_t) : option ptr :=
+match r with
+| nil => None
+| (hv, hp)::t => if var_eq_dec hv v then Some hp else (roots_get v t)
+end.
+
+Definition roots_maps (r: roots_t) (v: var) (p: ptr) : Prop :=
+  List.In (v,p) r.
+
+
+Definition output_t := list nat.
 
 (** val evaluation and helpers *)
 Fixpoint heap_get (p:ptr) (h:heap_t) : option val :=
@@ -48,11 +52,16 @@ match h with
 | (hp, hv)::t => if ptr_eq_dec hp p then Some hv else (heap_get p t)
 end.
 
-Fixpoint roots_get (v:var) (r:roots_t) : option ptr :=
-match r with
-| nil => None
-| (hv, hp)::t => if var_eq_dec hv v then Some hp else (roots_get v t)
-end.
+Definition heap_maps (h: heap_t) (p: ptr) (v: val) : Prop :=
+  List.In (p, v) h
+.
+
+Record state := mkState {
+                    roots : roots_t;
+                    heap : heap_t;
+                    output: output_t;
+                    fuel: nat;
+                  }.
 
 Fixpoint optional_list_from_list_optional {A: Type} (l: list (option A)) : option (list A) :=
   match l with
@@ -64,37 +73,28 @@ Fixpoint optional_list_from_list_optional {A: Type} (l: list (option A)) : optio
     | Some v, Some tl => Some (v::tl)
     end
   end.
-
-Fixpoint eval_valexp (exp:valexp) (s:state) : option val :=
-  let roots := roots s in
-  let heap := heap s in
-    match exp with
-    | IntExp n => Some (Int n) (** just an int value *)
-    | StructExp l => (** a struct *)
-      match optional_list_from_list_optional (List.map (fun x => eval_valexp x s) l) with
-      | None => None
-      | Some vl => Some (Struct vl)
-      end
-    | VarRead v => (** want the actual pointer *)
-      match roots_get v roots with
-      | None => None
-      | Some p => Some (Pointer p)
-      end
-    | Deref v => (** want value at pointer *)
-      match roots_get v roots with
-      | None => None
-      | Some p => heap_get p heap
-      end
-    | Index v n => (** value at pointer is a list of val, want the nth val of list *)
-      match roots_get v roots with
-      | None => None
-      | Some p =>
-        match heap_get p heap with
-        | Some (Struct l) => nth_error l n
-        | _ => None
-        end
-      end
-  end.
+Inductive eval_valexp : valexp -> state -> val -> Prop :=
+| IntExpEval : forall n s,
+    eval_valexp (IntExp n) s (Int n)
+| StructExpEval : forall l vl s,
+    (forall i,
+        List.In i l ->
+        (exists v, eval_valexp i s v /\ List.In v vl)
+    ) ->
+    eval_valexp (StructExp l) s (Struct vl)
+| VarReadEval : forall v p r h t f,
+    roots_maps r v p ->
+    eval_valexp (VarRead v) (mkState r h t f) (Pointer p)
+| DerefEval : forall rv hv p r h t f,
+    roots_maps r rv p ->
+    heap_maps h p hv ->
+    eval_valexp (Deref rv) (mkState r h t f) hv
+| IndexEval :forall v n p l val r h t f,
+    roots_maps r v p ->
+    heap_maps h p (Struct l) ->
+    (n < length l) ->
+    eval_valexp (Index v n) (mkState r h t f) val
+.
 
 (** fresh heap pointer is 1 more than the maximum heap ptr *)
 Definition fresh_heap_ptr (h: heap_t) : ptr :=
@@ -119,62 +119,47 @@ Definition set_var (v:var) (p:ptr) (r:roots_t) : roots_t :=
   let without_var := remove_var v r in
   (v, p)::without_var.
 
-(** small step semantics *)
-(** note that for all commands var doesn't need to be in roots, though eval_valexp may fail *)
-Definition small_step (c: com) (s: state) : option state :=
-  let roots := roots s in
-  let heap := heap s in
-  let output := output s in
-  let fuel := fuel s in
-
-  match c with
-  | New var vexp =>
-    match eval_valexp vexp s with
-    | Some val =>
-      let p := fresh_heap_ptr heap in
-      let new_heap := (p, val)::heap in
-      let new_roots := set_var var p roots in
-      Some (mkState new_roots new_heap output (S fuel))
-    | None => None
-    end
-  | Assign var vexp => (** vexp needs to evaluate to a pointer *)
-    match eval_valexp vexp s with
-    | Some (Pointer p) =>
-      let new_roots := set_var var p roots in
-      Some (mkState new_roots heap output (S fuel))
-    | _ => None
-    end
-  | Drop var =>
-    let new_roots := remove_var var roots in
-    Some (mkState new_roots heap output (S fuel))
-  | Out vexp => (** vexp needs to evaluate to a nat *)
-    match eval_valexp vexp s with
-    | Some (Int n) =>
-      let new_output := cons n output in
-      Some (mkState roots heap output (S fuel))
-    | _ => None
-    end
-  end.
-
-(** executing a whole program, not sure if necessary *)
-Definition execute_program (program: list com): option state :=
-  let fix execute (coms: list com) (s: state) :=
-    match coms with
-    | nil => Some s
-    | c::t =>
-      match small_step c s with
-      | None => None
-      | Some s' => execute t s'
-      end
-    end
-  in
-  execute program (mkState nil nil nil 0)
-.
-
-Definition heap_size (h: heap_t) := List.length h.
-
-Definition mark_head_measure (h: heap_t) (acc: set ptr) : nat :=
-  List.length h - List.length acc
+Inductive small_step : com -> state -> state -> Prop :=
+| NewStep : forall var vexp val p state,
+    eval_valexp vexp state val ->
+    p = fresh_heap_ptr (heap state) ->
+    small_step
+      (New var vexp)
+      state
+      (mkState
+         (set_var var p (roots state))
+         ((p, val) :: (heap state))
+         (output state)
+         (S (fuel state)))
+| AssignStep : forall var vexp p state,
+    eval_valexp vexp state (Pointer p) ->
+    small_step
+      (Assign var vexp)
+      state
+      (mkState
+         (set_var var p (roots state))
+         (heap state)
+         (output state)
+         (S (fuel state)))
+| DropStep : forall var state,
+    small_step
+      (Drop var)
+      state
+      (mkState
+         (remove_var var (roots state))
+         (heap state)
+         (output state)
+         (S (fuel state)))
+| OutStep : forall vexp n state,
+    eval_valexp vexp state (Int n) ->
+    small_step
+      (Out vexp)
+      state
+      (mkState
+         (roots state)
+         (heap state)
+         (cons n (output state))
+         (S (fuel state)))
 .
 
 Fixpoint mark_head (fuel: nat) (p: ptr) (h: heap_t) (acc: set ptr)
@@ -236,3 +221,15 @@ Definition gc (s: state) : state :=
   let heap' := sweep heap reachable in
   mkState roots heap' output fuel
 .
+
+Require Import CpdtTactics.
+
+Theorem safety_1 :
+  forall c s s' s'',
+  small_step c s = Some s' ->
+  small_step c (gc s) = Some s''.
+Proof.
+  intros.
+  destruct c ; unfold small_step in * ; crush.
+  * unfold small_step in H.
+Qed.
