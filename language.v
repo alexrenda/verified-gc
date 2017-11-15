@@ -222,6 +222,26 @@ Definition gc (s: state) : state :=
   mkState roots heap' output fuel
 .
 
+Inductive addresing_string : Type :=
+| TermStr : nat -> addresing_string
+| FollowStr : addresing_string -> addresing_string
+| IndexStr : nat -> addresing_string -> addresing_string
+.
+
+Inductive addresses : heap_t -> val -> addresing_string -> Prop :=
+| TermAddressesInt : forall h n,
+    addresses h (Int n) (TermStr n)
+| FollowAddressesPointer : forall h v p rest,
+    heap_maps h p v ->
+    addresses h v rest ->
+    addresses h (Pointer p) (FollowStr rest)
+| IndexAddressesStruct : forall h vs n v rest,
+    List.nth_error vs n = Some v ->
+    addresses h v rest ->
+    addresses h (Struct vs) (IndexStr n rest)
+.
+
+
 Require Import CpdtTactics.
 
 Theorem safety_1 :
