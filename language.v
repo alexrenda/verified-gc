@@ -1,4 +1,4 @@
-Require Import Bool Arith String List ListSet.
+Require Import Bool Arith String List ListSet Vector.
 
 (** model pointers as nats *)
 Definition ptr := nat.
@@ -12,30 +12,30 @@ Definition var_eq_dec := string_dec.
 Inductive val : Type :=
 | Int : nat -> val
 | Pointer : ptr -> val
-| Struct : list val -> val.
+.
 
 (** We will model heaps as lists of pointers and values. *)
-Definition heap_t := list (ptr * val).
+Definition heap_t := list (ptr * list val).
 
 Inductive valexp :=
-| IntExp : nat -> valexp
-| StructExp : list valexp -> valexp
-| VarRead : var -> valexp (** pointer associated with var *)
-| Deref : var -> valexp (** value associated with var *)
-| Index : var -> nat -> valexp.
+| IntExp : nat -> valexp       (* n *)
+| Deref : var -> nat -> valexp (* v[n] *)
+.
 
 Inductive com :=
-| New : var -> valexp -> com
-| Assign : var -> valexp -> com
-| Drop : var -> com
-| Out : valexp -> com.
+| New : var -> list valexp -> com         (* var = malloc(length l) ; var[:] = l *)
+| AssignMem : var -> nat -> valexp -> com (* var[i] = val *)
+| AssignVar : var -> valexp -> com        (* assert(type(val) = Ptr) : var = val *)
+| Drop : var -> com                       (* del var *)
+| Out : valexp -> com                     (* assert(type(val) = Int) ; print(val) *)
+.
 
 (** roots is the top level var to pointers, output is ouput of the program *)
 Definition roots_t := list (var * ptr).
 
 Fixpoint roots_get (v:var) (r:roots_t) : option ptr :=
 match r with
-| nil => None
+| List.nil => None
 | (hv, hp)::t => if var_eq_dec hv v then Some hp else (roots_get v t)
 end.
 
@@ -46,14 +46,38 @@ Definition roots_maps (r: roots_t) (v: var) (p: ptr) : Prop :=
 Definition output_t := list nat.
 
 (** val evaluation and helpers *)
-Fixpoint heap_get (p:ptr) (h:heap_t) : option val :=
+Fixpoint heap_get (p:ptr) (k: nat) (h:heap_t) : option val :=
 match h with
-| nil => None
-| (hp, hv)::t => if ptr_eq_dec hp p then Some hv else (heap_get p t)
+| List.nil => None
+| (hp, hv)::t =>
+  if ptr_eq_dec hp p then
+    List.nth_error hv k
+  else
+    (heap_get p k t)
 end.
 
-Definition heap_maps (h: heap_t) (p: ptr) (v: val) : Prop :=
-  List.In (p, v) h
+Fixpoint heap_set_k (h: heap_t) (p: ptr) (k: nat) (v: val) : option heap_t :=
+match h with
+| List.nil => None
+| (hp, hv)::t =>
+  if ptr_eq_dec hp p then
+    match Fin.of_nat k (List.length hv) with
+    | inleft p =>
+      let hv' := (Vector.to_list (Vector.replace (Vector.of_list hv) p v)) in
+      Some ((hp,hv')::t)
+    | inright _ => None
+    end
+  else
+    match heap_set_k t p k v with
+    | Some h' => Some ((hp,hv)::h')
+    | None => None
+    end
+end
+.
+
+
+Definition heap_maps (h: heap_t) (p: ptr) (k: nat) (v: val) : Prop :=
+  heap_get p k h = Some v
 .
 
 Record state := mkState {
@@ -63,37 +87,13 @@ Record state := mkState {
                     fuel: nat;
                   }.
 
-Fixpoint optional_list_from_list_optional {A: Type} (l: list (option A)) : option (list A) :=
-  match l with
-  | nil => Some nil
-  | h::t =>
-    match h, optional_list_from_list_optional t with
-    | None, _ => None
-    | _, None => None
-    | Some v, Some tl => Some (v::tl)
-    end
-  end.
 Inductive eval_valexp : valexp -> state -> val -> Prop :=
 | IntExpEval : forall n s,
     eval_valexp (IntExp n) s (Int n)
-| StructExpEval : forall l vl s,
-    (forall i,
-        List.In i l ->
-        (exists v, eval_valexp i s v /\ List.In v vl)
-    ) ->
-    eval_valexp (StructExp l) s (Struct vl)
-| VarReadEval : forall v p r h t f,
-    roots_maps r v p ->
-    eval_valexp (VarRead v) (mkState r h t f) (Pointer p)
-| DerefEval : forall rv hv p r h t f,
+| DerefEval : forall rv hv p k r h t f,
     roots_maps r rv p ->
-    heap_maps h p hv ->
-    eval_valexp (Deref rv) (mkState r h t f) hv
-| IndexEval :forall v n p l val r h t f,
-    roots_maps r v p ->
-    heap_maps h p (Struct l) ->
-    (n < length l) ->
-    eval_valexp (Index v n) (mkState r h t f) val
+    heap_maps h p k hv ->
+    eval_valexp (Deref rv k) (mkState r h t f) hv
 .
 
 (** fresh heap pointer is 1 more than the maximum heap ptr *)
@@ -101,7 +101,7 @@ Definition fresh_heap_ptr (h: heap_t) : ptr :=
   let max := fun (p1 p2:ptr) => if le_gt_dec p1 p2 then p2 else p1 in
   let fix max_heap (h': heap_t) :=
     match h' with
-    | nil => 0
+    | List.nil => 0
     | (p,_)::t => max p (max_heap t)
     end
   in
@@ -110,7 +110,7 @@ Definition fresh_heap_ptr (h: heap_t) : ptr :=
 (** Remove var from roots, works even if var is not in it *)
 Fixpoint remove_var (v:var) (r:roots_t) : roots_t :=
   match r with
-  | nil => nil
+  | List.nil => List.nil
   | (v',p')::t => if var_eq_dec v v' then remove_var v t else (v',p')::(remove_var v t)
   end.
 
@@ -120,27 +120,41 @@ Definition set_var (v:var) (p:ptr) (r:roots_t) : roots_t :=
   (v, p)::without_var.
 
 Inductive small_step : com -> state -> state -> Prop :=
-| NewStep : forall var vexp val p state,
-    eval_valexp vexp state val ->
+| NewStep : forall var vexps vals p state,
+    List.Forall2 (fun vexp val => eval_valexp vexp state val) vexps vals ->
     p = fresh_heap_ptr (heap state) ->
     small_step
-      (New var vexp)
+      (New var vexps)
       state
       (mkState
          (set_var var p (roots state))
-         ((p, val) :: (heap state))
+         ((p, vals) :: (heap state))
          (output state)
          (S (fuel state)))
-| AssignStep : forall var vexp p state,
+| AssignVarStep : forall var vexp p state,
     eval_valexp vexp state (Pointer p) ->
     small_step
-      (Assign var vexp)
+      (AssignVar var vexp)
       state
       (mkState
          (set_var var p (roots state))
          (heap state)
          (output state)
-         (S (fuel state)))
+         (S (fuel state))
+      )
+| AssignMemStep : forall var ptr k vexp val state h',
+    roots_maps (roots state) var ptr ->
+    eval_valexp vexp state val ->
+    heap_set_k (heap state) ptr k val = Some h' ->
+    small_step
+      (AssignMem var k vexp)
+      state
+      (mkState
+         (roots state)
+         (h')
+         (output state)
+         (S (fuel state))
+      )
 | DropStep : forall var state,
     small_step
       (Drop var)
@@ -158,7 +172,7 @@ Inductive small_step : com -> state -> state -> Prop :=
       (mkState
          (roots state)
          (heap state)
-         (cons n (output state))
+         (List.cons n (output state))
          (S (fuel state)))
 .
 
@@ -211,15 +225,8 @@ Fixpoint sweep (h: heap_t) (ptrs: set ptr) : heap_t :=
   end
 .
 
-Definition gc (s: state) : state :=
-  let roots := roots s in
-  let heap := heap s in
-  let output := output s in
-  let fuel := fuel s in
-
-  let reachable := mark fuel roots heap nil in
-  let heap' := sweep heap reachable in
-  mkState roots heap' output fuel
+Definition gc (f: nat) (r: roots_t) (h: heap_t) : heap_t :=
+  sweep h (mark f r h nil)
 .
 
 Inductive addresing_string : Type :=
@@ -228,9 +235,27 @@ Inductive addresing_string : Type :=
 | IndexStr : nat -> addresing_string -> addresing_string
 .
 
-Inductive addresses : heap_t -> val -> addresing_string -> Prop :=
-| TermAddressesInt : forall h n,
-    addresses h (Int n) (TermStr n)
+Inductive addresses : heap_t -> ptr -> addresing_string -> Prop :=
+| TermAddressesInt : forall h p n,
+    heap_maps h p (Int n) ->
+    addresses h p (TermStr n)
+| FollowAddressesPointer : forall h p p' rest,
+    heap_maps h p (Pointer p') ->
+    addresses h p' rest ->
+    addresses h p (FollowStr rest)
+| IndexTermAddressesStructInt : forall h p vs idx n,
+    heap_maps h p (Struct vs) ->
+    List.nth_error vs idx = Some (Int n) ->
+    addresses h p (IndexStr idx (TermStr n))
+| IndexTermAddressesStructInt : forall h p vs idx n,
+    heap_maps h p (Struct vs) ->
+    List.nth_error vs idx = Some (Pointer p') ->
+    addresses h p' rest ->
+    addresses h p (IndexStr idx (FollowStr ))
+.
+
+    addresses h p rest ->
+.
 | FollowAddressesPointer : forall h v p rest,
     heap_maps h p v ->
     addresses h v rest ->
@@ -241,6 +266,50 @@ Inductive addresses : heap_t -> val -> addresing_string -> Prop :=
     addresses h (Struct vs) (IndexStr n rest)
 .
 
+Require Import CpdtTactics.
+
+Theorem heap_marks :
+  forall address s v p,
+    roots_maps (roots s) v p ->
+    addresses (heap s) (Pointer p) address ->
+    heap_maps (heap s) p (Int n) ->
+    (
+      exists p',
+        set_In p' mark (fuel s) (roots s) (heap s)
+        /\
+        heap_maps (heap s) p' (Int n)
+    )
+    addresses (gc (fuel s) (roots s) (heap s)) (Pointer p) address.
+Proof.
+
+Theorem heap_equivalence :
+  forall address s v p,
+    roots_maps (roots s) v p ->
+    addresses (heap s) (Pointer p) address ->
+    addresses (gc (fuel s) (roots s) (heap s)) (Pointer p) address.
+Proof.
+  induction address.
+  * intros.
+    inversion H0.
+  * intros.
+    inversion H0.
+    subst.
+    remember (fuel s) as f.
+    induction f ; subst.
+  -  unfold gc, mark, sweep.
+
+      subst.
+      induction (fuel s).
+    -
+    induction v0.
+    - inversion H5.
+      subst.
+
+      inversion H5.
+      specialize (IHaddress s v p).
+    intuition.
+    eapply IHaddress.
+Qed.
 
 Require Import CpdtTactics.
 
