@@ -165,15 +165,39 @@ Proof.
         eauto.
 Qed.
 
+Lemma set_nth_does_not_set : forall {A: Type} k k' v (l l0: list A),
+  k <> k' ->
+  List.nth_error l k' = Some v ->
+  set_nth k v l = Some l0 ->  
+  List.nth_error l0 k' = Some v.
+Proof.
+Admitted.
 
 Theorem heap_set_maintains : forall h h' p k v v',
     heap_set_k h p k v' = Some h' ->
     forall p' k',
       (p <> p' \/ k <> k') ->
-      heap_get p k h = Some v ->
-      heap_get p k h' = Some v
+      heap_get p' k' h = Some v ->
+      heap_get p' k' h' = Some v
 .
 Proof.
+  induction h; intros.
+  * crush.
+  * unfold heap_get.
+    destruct h' eqn:?.
+    - simpl in *.
+      destruct a in H.
+      destruct (ptr_eq_dec p0 p) in H.
+      + destruct (set_nth k v' l) in H; discriminate.
+      + destruct (heap_set_k h p k v') in H; discriminate.
+    - destruct p0.
+      destruct (ptr_eq_dec p0 p).
+      + destruct a.
+        destruct (ptr_eq_dec p p'); subst.
+        ** destruct (ptr_eq_dec p' p'); try congruence.
+           admit.
+        ** admit.
+      + admit.
 Admitted.
 
 
