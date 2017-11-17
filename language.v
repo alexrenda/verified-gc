@@ -524,14 +524,14 @@ Proof.
 *)
 Admitted.
 
-(*
-Theorem heap_equivalence :
-  forall address s v p,
+
+Lemma pointer_equivalence :
+  forall address s v p p',
     roots_maps (roots s) v p ->
-    addresses (heap s) (Pointer p) address ->
-    addresses (gc (fuel s) (roots s) (heap s)) (Pointer p) address.
+    addresses (heap s) p address p' ->
+    addresses (gc (fuel s) (roots s) (heap s)) p address p'.
 Proof.
-  induction address.
+(*  induction address.
   * intros.
     inversion H0.
   * intros.
@@ -552,8 +552,10 @@ Proof.
       specialize (IHaddress s v p).
     intuition.
     eapply IHaddress.
-Qed.
+ *)
+Admitted.
 
+(*
 Theorem safety_1 :
   forall c s s' s'',
   small_step c s = Some s' ->
@@ -564,3 +566,38 @@ Proof.
   * unfold small_step in H.
 Qed.
 *)
+
+
+
+
+Inductive execution : state -> list com -> output_t -> Prop :=
+| NilExecution : forall state,
+    execution state List.nil (output state)
+| GcExecution : forall state coms out,
+    execution (mkState (roots state) (gc (fuel state) (roots state) (heap state)) (output state) (fuel state)) coms out ->
+    execution state coms out
+| ComExecution : forall com coms state state' out,
+    small_step com state state' ->
+    execution state' coms out ->
+    execution state (List.cons com coms) out
+.
+
+Theorem execution_output :
+  forall st com out out',
+    execution st com out ->
+    execution st com out' ->
+    out = out'
+.
+Proof.
+Admitted.
+
+Theorem liveness_1 :
+  forall st p vs,
+    heap_maps_struct (gc (fuel st) (roots st) (heap st)) p vs ->
+    exists address v p' p'',
+      roots_maps (roots st) v p'
+      /\
+      addresses (heap st) p' address p''
+      /\
+      heap_maps_struct (heap st) p'' vs
+.
