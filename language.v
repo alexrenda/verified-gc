@@ -75,6 +75,28 @@ match h with
 end
 .
 
+Theorem heap_set_sets : forall h h' p k v v',
+    heap_get p k h = Some v ->
+    (
+      heap_set_k h p k v' = Some h'
+      /\
+      heap_get p k h' = Some v'
+    )
+.
+Proof.
+Admitted.
+
+Theorem heap_set_maintains : forall h h' p k v v',
+    heap_set_k h p k v' = Some h' ->
+    forall p' k',
+      (p <> p' \/ k <> k') ->
+      heap_get p k h = Some v ->
+      heap_get p k h' = Some v
+.
+Proof.
+Admitted.
+
+
 
 Definition heap_maps (h: heap_t) (p: ptr) (k: nat) (v: val) : Prop :=
   heap_get p k h = Some v
