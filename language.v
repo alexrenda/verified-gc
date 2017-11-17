@@ -45,6 +45,16 @@ Definition roots_maps (r: roots_t) (v: var) (p: ptr) : Prop :=
 
 Definition output_t := list nat.
 
+Fixpoint heap_get_struct (p:ptr) (h:heap_t) : option (list val) :=
+match h with
+| List.nil => None
+| (hp, hv)::t =>
+  if ptr_eq_dec hp p then
+    Some hv
+  else
+    (heap_get_struct p t)
+end.
+
 (** val evaluation and helpers *)
 Fixpoint heap_get (p:ptr) (k: nat) (h:heap_t) : option val :=
 match h with
@@ -97,9 +107,12 @@ Proof.
 Admitted.
 
 
-
 Definition heap_maps (h: heap_t) (p: ptr) (k: nat) (v: val) : Prop :=
   heap_get p k h = Some v
+.
+
+Definition heap_maps_struct (h: heap_t) (p: ptr) (vs: list val) : Prop :=
+  heap_get_struct p h = Some vs
 .
 
 Record state := mkState {
@@ -198,48 +211,103 @@ Inductive small_step : com -> state -> state -> Prop :=
          (S (fuel state)))
 .
 
-Fixpoint mark_head (fuel: nat) (p: ptr) (h: heap_t) (acc: set ptr)
-  : set ptr :=
-  match fuel, set_mem ptr_eq_dec p acc with
-  | S n, false =>
-    let acc := set_add ptr_eq_dec p acc in
-    match heap_get p h with
-    | None => acc
-    | Some val =>
-      match val with
-      | Int _ => acc
-      | Pointer ptr =>
-        mark_head n p h acc
-      | Struct vals =>
-        List.fold_left (
-            fun a v =>
+Inductive addresing_string : Type :=
+| TermStr : addresing_string
+| FollowStr : nat -> addresing_string -> addresing_string
+.
+
+Inductive addresses : heap_t -> ptr -> addresing_string -> ptr -> Prop :=
+| TermAddresses : forall h p,
+    (exists vs, heap_maps_struct h p vs) ->
+    addresses h p TermStr p
+| FollowAddresses : forall h p p' p'' k rest,
+    heap_maps h p k (Pointer p') ->
+    addresses h p' rest p'' ->
+    addresses h p (FollowStr k rest) p''
+.
+
+Fixpoint mark_ptr (fuel:nat) (p: ptr) (h: heap_t) : set ptr :=
+  match fuel, heap_get_struct p h with
+  | S n, Some vs =>
+      List.fold_left
+        (set_union ptr_eq_dec)
+        (List.map
+           (fun v =>
               match v with
-              | Pointer ptr => mark_head n ptr h a
-              | _ => a
+              | Int _ => List.nil
+              | Pointer p => mark_ptr n p h
               end
-          ) vals acc
-      end
-    end
-  | _, _ => acc
+           ) vs)
+        (set_add ptr_eq_dec p (empty_set ptr))
+  | _, _ => List.nil
   end
 .
 
-Fixpoint mark (fuel:nat) (r: roots_t) (h: heap_t) (acc: set ptr) : set ptr :=
+Require Import CpdtTactics.
+
+Lemma fold_union_1 :
+  forall {A: Type} (eq_dec: forall (x y: A), {x = y} + {x <> y})
+         (vs: list (set A)) (acc acc': set A) (a: A),
+    List.fold_left (set_union eq_dec) vs acc = acc' ->
+    set_In a acc ->
+    set_In a acc'.
+Proof.
+  induction vs.
+  * intros.
+    subst.
+    unfold List.fold_left. auto.
+  * intros.
+    specialize (fold_left_app (set_union eq_dec) (List.cons a List.nil) vs acc).
+    crush.
+    specialize (IHvs (set_union eq_dec acc a) (List.fold_left (set_union eq_dec) vs (set_union eq_dec acc a)) a0).
+    assert (set_In a0 (set_union eq_dec acc a)). eapply set_union_intro1. auto.
+    intuition.
+Qed.
+
+Theorem mark_ptr_marks :
+  forall address h p p',
+    addresses h p address p' ->
+    exists f, set_In p' (mark_ptr f p h)
+.
+Proof.
+  induction address.
+  * exists 1.
+    inversion H.
+    inversion H0.
+    crush.
+    induction x.
+    - crush.
+    - remember (List.map
+          (fun v : val =>
+           match v with
+           | Int _ => Datatypes.nil
+           | Pointer _ => Datatypes.nil
+           end) (a :: x)) as vs.
+      remember (List.fold_left (set_union ptr_eq_dec) vs (p' :: Datatypes.nil)) as acc'.
+      eapply fold_union_1. auto. crush.
+  * intros.
+    inversion H.
+    subst.
+    specialize (IHaddress h p p').
+    intuition.
+    crush.
+Admitted.
+
+Fixpoint mark (fuel:nat) (r: roots_t) (h: heap_t) : set ptr :=
   match r with
-  | nil => acc
-  | cons root rest =>
+  | List.nil => List.nil
+  | List.cons root rest =>
     match root with
     | (var, ptr) =>
-      let acc' := mark_head fuel ptr h acc in
-      mark fuel rest h acc'
+      set_union ptr_eq_dec (mark fuel rest h) (mark_ptr fuel ptr h)
     end
   end
 .
 
 Fixpoint sweep (h: heap_t) (ptrs: set ptr) : heap_t :=
   match h with
-  | nil => nil
-  | cons (ptr, val) tail =>
+  | List.nil => List.nil
+  | List.cons (ptr, val) tail =>
     if set_mem ptr_eq_dec ptr ptrs then
       (ptr,val) :: (sweep tail ptrs)
     else
@@ -248,62 +316,111 @@ Fixpoint sweep (h: heap_t) (ptrs: set ptr) : heap_t :=
 .
 
 Definition gc (f: nat) (r: roots_t) (h: heap_t) : heap_t :=
-  sweep h (mark f r h nil)
+  sweep h (mark f r h)
 .
-
-Inductive addresing_string : Type :=
-| TermStr : nat -> addresing_string
-| FollowStr : addresing_string -> addresing_string
-| IndexStr : nat -> addresing_string -> addresing_string
-.
-
-Inductive addresses : heap_t -> ptr -> addresing_string -> Prop :=
-| TermAddressesInt : forall h p n,
-    heap_maps h p (Int n) ->
-    addresses h p (TermStr n)
-| FollowAddressesPointer : forall h p p' rest,
-    heap_maps h p (Pointer p') ->
-    addresses h p' rest ->
-    addresses h p (FollowStr rest)
-| IndexTermAddressesStructInt : forall h p vs idx n,
-    heap_maps h p (Struct vs) ->
-    List.nth_error vs idx = Some (Int n) ->
-    addresses h p (IndexStr idx (TermStr n))
-| IndexTermAddressesStructInt : forall h p vs idx n,
-    heap_maps h p (Struct vs) ->
-    List.nth_error vs idx = Some (Pointer p') ->
-    addresses h p' rest ->
-    addresses h p (IndexStr idx (FollowStr ))
-.
-
-    addresses h p rest ->
-.
-| FollowAddressesPointer : forall h v p rest,
-    heap_maps h p v ->
-    addresses h v rest ->
-    addresses h (Pointer p) (FollowStr rest)
-| IndexAddressesStruct : forall h vs n v rest,
-    List.nth_error vs n = Some v ->
-    addresses h v rest ->
-    addresses h (Struct vs) (IndexStr n rest)
-.
-
-Require Import CpdtTactics.
 
 Theorem heap_marks :
-  forall address s v p,
+  forall address s v p p',
     roots_maps (roots s) v p ->
-    addresses (heap s) (Pointer p) address ->
-    heap_maps (heap s) p (Int n) ->
-    (
-      exists p',
-        set_In p' mark (fuel s) (roots s) (heap s)
-        /\
-        heap_maps (heap s) p' (Int n)
-    )
-    addresses (gc (fuel s) (roots s) (heap s)) (Pointer p) address.
+    addresses (heap s) p address p' ->
+    exists f, set_In p' (mark f (roots s) (heap s))
+.
 Proof.
+(*
+  induction address.
+  * intros.
+    exists 1.
+    inversion H0 ; clear H0.
+    inversion H1 ; clear H1.
+    inversion H0 ; subst.
+    unfold mark.
+    induction (roots s). auto.
+    destruct a.
+    inversion H.
+    - injection H1. intros. subst. clear H1.
 
+      unfold mark_ptr.
+      fold mark_ptr.
+      fold mark.
+      edestruct set_mem eqn:?.
+      specialize (set_mem_correct1 ptr_eq_dec p' (mark 1 r (heap s)) Heqb). auto.
+      destruct (heap_get_struct p' (heap s)) eqn:?.
+      + injection H4. intros. subst. clear H4.
+        clear H0.
+        induction x.
+        ** eapply set_add_intro2. crush.
+        ** crush.
+
+
+
+
+      inversion H. injection H1. intros. subst. clear H1. crush.
+
+    destruct a eqn:?.
+    subst.
+    destruct H. injection H ; intros ; subst.
+    - induction (heap s).
+      + crush.
+      + inversion H0.
+        destruct a.
+        destruct (ptr_eq_dec p p'); subst.
+        ** injection H2. intros. subst. clear H2.
+           crush.
+           edestruct ptr_eq_dec in H4.
+            -- admit.
+            -- contradiction n. auto.
+        **
+           unfold mark.
+           unfold mark_ptr.
+           fold mark_ptr.
+           crush.
+        destruct (set_mem ptr_eq_dec p' Datatypes.nil) eqn:? ; crush.
+
+
+        crush.
+        destruct p.
+
+        crush.
+    - intuition.
+ auto.    unfold roots_maps in H.
+
+    destruct (var_eq_dec v0 v) eqn:?.
+    - subst.
+      unfold roots_maps in H.
+      unfold List.In in H.
+      destruct H.
+      + crush.
+        induction (heap s).
+        ** crush.
+        ** crush.
+        fold mark_ptr.
+      inversion H.
+      inversion H.
+    crush.
+    subst.
+    u
+
+    induction (roots s).
+    - unfold roots_maps in H.
+      inversion H.
+    - unfold roots_maps in H.
+      unfold List.In in H.
+      destruct a.
+      destruct H eqn:?.
+      + subst.
+        inversion H1.
+
+    exists 1.
+    inversion H0.
+    inversion H1.
+    unfold mark.
+    unfold mark.
+    subst.
+    inversion H0.
+*)
+Admitted.
+
+(*
 Theorem heap_equivalence :
   forall address s v p,
     roots_maps (roots s) v p ->
@@ -332,7 +449,6 @@ Proof.
     intuition.
     eapply IHaddress.
 Qed.
-
 Require Import CpdtTactics.
 
 Theorem safety_1 :
@@ -344,3 +460,4 @@ Proof.
   destruct c ; unfold small_step in * ; crush.
   * unfold small_step in H.
 Qed.
+*)
