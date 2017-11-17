@@ -1,4 +1,4 @@
-Require Import Bool Arith String List ListSet Vector.
+Require Import Bool Arith String List ListSet Vector CpdtTactics.
 
 (** model pointers as nats *)
 Definition ptr := nat.
@@ -66,16 +66,25 @@ match h with
     (heap_get p k t)
 end.
 
+Fixpoint set_nth {A: Type} (n: nat) (v: A) (l: list A) : option (list A) :=
+  match n, l with
+  | 0, h::t => Some (v::t)
+  | S(n'), h::t =>
+    match set_nth n' v t with
+    | Some l' => Some (h::l')
+    | None => None
+    end
+  | _, _ => None
+  end.
+
 Fixpoint heap_set_k (h: heap_t) (p: ptr) (k: nat) (v: val) : option heap_t :=
 match h with
 | List.nil => None
 | (hp, hv)::t =>
   if ptr_eq_dec hp p then
-    match Fin.of_nat k (List.length hv) with
-    | inleft p =>
-      let hv' := (Vector.to_list (Vector.replace (Vector.of_list hv) p v)) in
-      Some ((hp,hv')::t)
-    | inright _ => None
+    match set_nth k v hv with
+    | Some hv' => Some ((hp,hv')::t)
+    | None => None
     end
   else
     match heap_set_k t p k v with
@@ -85,14 +94,92 @@ match h with
 end
 .
 
-Theorem heap_set_sets : forall h h' p k v v',
+Lemma heap_set_ptr_no_change : forall h h0 p p1 k v p0 l l',
+  heap_set_k ((p, l) :: h) p1 k v = Some ((p0, l') :: h0) ->
+  p = p0.
+Proof.
+  intros.
+  inversion H.
+  destruct (ptr_eq_dec p p1) in H1.
+  * destruct (set_nth k v l) in H1; crush.
+  * destruct (heap_set_k h p1 k v) in H1; crush.
+Qed.
+
+Lemma heap_set_first_neq : forall h h0 p k v p0 l l',
+  p0 <> p ->
+  heap_set_k ((p0, l) :: h) p k v = Some ((p0, l') :: h0) ->
+  heap_set_k h p k v = Some h0.
+Proof.
+  intros.
+  inversion H0.
+  destruct (ptr_eq_dec p0 p).
+  * crush.
+  * destruct (heap_set_k h p k v); crush.
+Qed.
+
+Lemma heap_get_first_neq : forall h p k v p0 l,
+  p0 <> p ->
+  heap_get p k ((p0, l) :: h) = Some v ->
+  heap_get p k h = Some v.
+Proof.
+  intros.
+  inversion H0.
+  destruct (ptr_eq_dec p0 p); crush.
+Qed.
+
+Lemma set_nth_sets : forall {A: Type} k v (l l0: list A),
+  set_nth k v l = Some l0 ->
+  List.nth_error l0 k = Some v.
+Proof.
+  induction k; intros.
+  * simpl in *.
+    destruct l; crush.
+  * simpl in *.
+    destruct l.
+    - crush.
+    - destruct (set_nth k v l) eqn:?.
+      + crush; eauto.
+      + discriminate.
+Qed.
+
+Theorem heap_set_sets : forall h p k v v' h',
     heap_get p k h = Some v ->
-    (
-      heap_set_k h p k v' = Some h'
-      /\
-      heap_get p k h' = Some v'
-    )
+    heap_set_k h p k v' = Some h' ->
+    heap_get p k h' = Some v'
 .
+Proof.
+  Hint Resolve heap_set_ptr_no_change heap_set_first_neq heap_get_first_neq set_nth_sets.
+  induction h; intros.
+  * crush.
+  * unfold heap_get.
+    destruct h' eqn:?.
+    - simpl in *.
+      destruct a in H0.
+      destruct (ptr_eq_dec p0 p) in H0.
+      + destruct (set_nth k v' l) in H0; discriminate.
+      + destruct (heap_set_k h p k v') in H0; discriminate.
+    - destruct p0.
+      destruct (ptr_eq_dec p0 p).
+      + inversion H.
+        destruct a.
+        remember H0; clear Heqe0; eapply heap_set_ptr_no_change in e0.
+        subst.
+        unfold heap_set_k in H0.
+        destruct (ptr_eq_dec p p) in H0; crush.
+        destruct (set_nth k v' l0) eqn:?; crush.
+        try eapply set_nth_sets in Heqo; crush.
+      + fold heap_get.
+        destruct a.
+        remember H0; clear Heqe; eapply heap_set_ptr_no_change in e.
+        subst.
+        eauto.
+Qed.
+
+Lemma set_nth_does_not_set : forall {A: Type} k k' v (l l0: list A),
+  k <> k' ->
+  List.nth_error l k' = Some v ->
+  set_nth k v l = Some l0 ->
+  List.nth_error l0 k' = Some v.
 Proof.
 Admitted.
 
@@ -100,10 +187,27 @@ Theorem heap_set_maintains : forall h h' p k v v',
     heap_set_k h p k v' = Some h' ->
     forall p' k',
       (p <> p' \/ k <> k') ->
-      heap_get p k h = Some v ->
-      heap_get p k h' = Some v
+      heap_get p' k' h = Some v ->
+      heap_get p' k' h' = Some v
 .
 Proof.
+  induction h; intros.
+  * crush.
+  * unfold heap_get.
+    destruct h' eqn:?.
+    - simpl in *.
+      destruct a in H.
+      destruct (ptr_eq_dec p0 p) in H.
+      + destruct (set_nth k v' l) in H; discriminate.
+      + destruct (heap_set_k h p k v') in H; discriminate.
+    - destruct p0.
+      destruct (ptr_eq_dec p0 p).
+      + destruct a.
+        destruct (ptr_eq_dec p p'); subst.
+        ** destruct (ptr_eq_dec p' p'); try congruence.
+           admit.
+        ** admit.
+      + admit.
 Admitted.
 
 
@@ -449,7 +553,6 @@ Proof.
     intuition.
     eapply IHaddress.
 Qed.
-Require Import CpdtTactics.
 
 Theorem safety_1 :
   forall c s s' s'',
