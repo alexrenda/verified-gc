@@ -7,14 +7,12 @@ all: coq
 
 %: Makefile.coq
 	+make -f Makefile.coq $@
-	+make -f Makefile.tex $@ TARGET=$(TARGET)
 
 coq: Makefile.coq
 	+make -f Makefile.coq all
 
 clean: Makefile.coq
 	+make -f Makefile.coq clean
-	+make -f Makefile.tex clean TARGET=$(TARGET)
 	rm -f Makefile.coq
 
 Makefile.coq: _CoqProject Makefile
