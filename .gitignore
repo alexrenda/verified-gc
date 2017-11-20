@@ -30,3 +30,4 @@ nlia.cache
 nra.cache
 Makefile.coq
 CoqMakefile.conf
+*.v#
