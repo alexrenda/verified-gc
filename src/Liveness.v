@@ -9,8 +9,14 @@ Lemma subset_property: forall st v p p0 roots,
   (exists address v0 p', roots_maps ((v, p) :: roots) v0 p' /\ addresses (heap st) p' address p0)
 .
 Proof.
-Admitted.
-
+  intros.
+  destruct H as [a [v0 [p' H]]].
+  exists a.
+  exists v0.
+  exists p'.
+  unfold roots_maps.
+  crush.
+Qed.
 
 Lemma mark_liveness_1 :
   forall st p vs,
@@ -132,16 +138,6 @@ Proof.
     + apply H1.
   * intuition.
 Qed.
-
-(* This only works since pointer values don't change *)
-Lemma paths_maintained:
-  forall st address p p' h,
-    addresses (heap st) p' address p -> 
-    sweep (heap st) (mark (fuel st) (roots st) (heap st)) = h ->
-    addresses h p' address p
-.
-Proof.
-Admitted.
 
 Theorem liveness_1 :
   forall st p vs h,

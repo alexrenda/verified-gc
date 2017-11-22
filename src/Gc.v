@@ -216,6 +216,16 @@ Proof.
 *)
 Admitted.
 
+(* Must be proved for liveness *)
+Lemma paths_maintained:
+  forall st address p p' h,
+    addresses (heap st) p address p' -> 
+    sweep (heap st) (mark (fuel st) (roots st) (heap st)) = h ->
+    addresses h p address p'
+.
+Proof.
+  intros.
+Admitted.
 
 Lemma pointer_equivalence :
   forall address s v p p',
