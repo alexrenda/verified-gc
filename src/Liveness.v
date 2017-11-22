@@ -1,5 +1,16 @@
 Require Import Gc.Language Gc.Gc.
-Require Import List ListSet CpdtTactics.
+Require Import List ListSet CpdtTactics Equality Wf Nat Wf_nat.
+
+Definition roots_len_induction := well_founded_induction (
+  well_founded_inv_rel_inv_lt_rel (roots_t) (fun l => fun x => length l = x)).
+
+Lemma subset_property: forall st v p p0 roots,
+  (exists address v0 p', roots_maps (roots) v0 p' /\ addresses (heap st) p' address p0) ->
+  (exists address v0 p', roots_maps ((v, p) :: roots) v0 p' /\ addresses (heap st) p' address p0)
+.
+Proof.
+Admitted.
+
 
 Lemma mark_liveness_1 :
   forall st p vs,
@@ -11,7 +22,8 @@ Lemma mark_liveness_1 :
       addresses (heap st) p' address p
 .
 Proof.
-  Hint Unfold heap_maps_struct heap_get_struct.
+  Hint Unfold heap_maps_struct heap_get_struct roots_maps.
+  Hint Resolve subset_property.
   intro st.
   remember (fuel st) as fuel.
   induction fuel; intros.
@@ -24,8 +36,21 @@ Proof.
       destruct a in H.
       unfold set_union in H.
       intuition.
-  *
-Admitted.
+  * unfold mark in H.
+    induction (roots st).
+    + intuition.
+    + fold mark in H, IHr.
+      dependent destruction a.
+      apply set_union_elim in H.
+      destruct H.
+      - intuition.
+      - apply mark_ptr_correct in H.
+        edestruct H.
+        exists x.
+        exists v.
+        exists p.
+        intuition.
+Qed.
 
 Lemma not_in_set_neq :
   forall {A: Type} (p p': A) ptrs,
@@ -89,10 +114,9 @@ Proof.
         ** apply (IHh h' ptrs p vs); intuition.
 Qed.
 
-(* This only works since pointer values don't change *)
-Lemma liveness_1_helper :
+Lemma mark_sweep_liveness_1 :
   forall st p vs h,
-    (gc (fuel st) (roots st) (heap st)) = h ->
+    sweep (heap st) (mark (fuel st) (roots st) (heap st)) = h ->
     heap_maps_struct h p vs ->
     exists address v p',
       roots_maps (roots st) v p'
@@ -101,7 +125,6 @@ Lemma liveness_1_helper :
 .
 Proof.
   intros.
-  unfold gc in H.
   apply (sweep_actually_sweeps (heap st) h (mark (fuel st) (roots st) (heap st)) p vs) in H.
   * destruct H.
     eapply (mark_liveness_1).
@@ -114,7 +137,7 @@ Qed.
 Lemma paths_maintained:
   forall st address p p' h,
     addresses (heap st) p' address p -> 
-    (gc (fuel st) (roots st) (heap st)) = h ->
+    sweep (heap st) (mark (fuel st) (roots st) (heap st)) = h ->
     addresses h p' address p
 .
 Proof.
@@ -131,8 +154,8 @@ Theorem liveness_1 :
 .
 Proof.
   intros.
-  remember H as temp. clear Heqtemp.
-  apply (liveness_1_helper st p vs h) in temp.
+  pose H as temp.
+  apply (mark_sweep_liveness_1 st p vs h) in temp.
   * destruct temp as [a [v  [p' [H1 H2]]]].
     eapply paths_maintained in H2; eauto.
   * auto.

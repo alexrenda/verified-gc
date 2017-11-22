@@ -83,14 +83,20 @@ Proof.
     crush.
 Admitted.
 
+(* Must be proved for liveness *)
+Theorem mark_ptr_correct :
+  forall h p p' f,
+    set_In p' (mark_ptr f p h) ->
+    exists address, addresses h p address p'
+.
+Proof.
+Admitted.
+
 Fixpoint mark (fuel:nat) (r: roots_t) (h: heap_t) : set ptr :=
   match r with
   | List.nil => List.nil
-  | List.cons root rest =>
-    match root with
-    | (var, ptr) =>
-      set_union ptr_eq_dec (mark fuel rest h) (mark_ptr fuel ptr h)
-    end
+  | List.cons (var, ptr) rest =>
+    set_union ptr_eq_dec (mark fuel rest h) (mark_ptr fuel ptr h)
   end
 .
 
