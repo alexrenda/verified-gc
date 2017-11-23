@@ -35,6 +35,27 @@ Fixpoint mark_ptr (fuel:nat) (p: ptr) (h: heap_t) : set ptr :=
 
 Require Import CpdtTactics.
 
+Lemma heap_maps_implies_heap_get :
+  forall h p n v,
+  heap_maps h p n v ->
+  exists vs,
+    heap_get_struct p h = Some vs
+    /\
+    List.nth_error vs n = Some v
+.
+Proof.
+  induction h ; intros.
+  * inversion H.
+  * specialize IHh with p n v.
+    destruct a.
+    unfold heap_get_struct.
+    unfold heap_maps in *.
+    unfold heap_get in *.
+    destruct (ptr_eq_dec p0 p) eqn:?.
+    - exists l. crush.
+    - crush.
+Qed.
+
 Lemma fold_union_1 :
   forall {A: Type} (eq_dec: forall (x y: A), {x = y} + {x <> y})
          (vs: list (set A)) (acc acc': set A) (a: A),
@@ -54,6 +75,28 @@ Proof.
     intuition.
 Qed.
 
+Lemma fold_union_nth_error :
+  forall {A: Type} (eq_dec: forall (x y: A), {x = y} + {x <> y})
+         (vs: list (set A)) (n: nat) (v acc : set A) (a: A),
+    List.nth_error vs n = Some v ->
+    set_In a v ->
+    set_In a (List.fold_left (set_union eq_dec) vs acc).
+Proof.
+  induction vs.
+  * intros.
+    specialize (nth_error_In nil n H).
+    intros.
+    inversion H1.
+  * induction n ; intros.
+    - inversion H. clear H.
+      subst.
+      crush.
+      eapply fold_union_1. crush.
+      eapply (set_union_intro2). auto.
+    - crush.
+      eapply IHvs ; crush.
+Qed.
+
 Theorem mark_ptr_marks :
   forall address h p p',
     addresses h p address p' ->
@@ -61,27 +104,37 @@ Theorem mark_ptr_marks :
 .
 Proof.
   induction address.
-  * exists 1.
-    inversion H.
-    inversion H0.
-    crush.
-    induction x.
-    - crush.
-    - remember (List.map
-          (fun v : val =>
-           match v with
-           | Int _ => Datatypes.nil
-           | Pointer _ => Datatypes.nil
-           end) (a :: x)) as vs.
-      remember (List.fold_left (set_union ptr_eq_dec) vs (p' :: Datatypes.nil)) as acc'.
-      eapply fold_union_1. auto. crush.
   * intros.
-    inversion H.
+    inversion H. clear H.
+    inversion H0. clear H0.
     subst.
-    specialize (IHaddress h p p').
-    intuition.
-    crush.
-Admitted.
+    exists 1.
+    unfold mark_ptr.
+    rewrite H.
+    eapply fold_union_1 ; crush.
+  * intros.
+    inversion H. clear H.
+    subst.
+    specialize (IHaddress h p'0 p' H6).
+    inversion IHaddress. clear IHaddress.
+    exists (S x).
+    specialize (heap_maps_implies_heap_get h p n (Pointer p'0) H4).
+    intros.
+    inversion H0 ; clear H0.
+    destruct H1.
+    unfold mark_ptr.
+    fold mark_ptr.
+    rewrite H0.
+    specialize (List.map_nth_error (fun v : val =>
+           match v with
+           | Int _ => nil
+           | Pointer p'1 => mark_ptr x p'1 h
+           end) n x0 H1).
+    intros.
+    eapply fold_union_nth_error.
+    eapply H2.
+    auto.
+Qed.
 
 Lemma fold_union_2 :
   forall {A: Type} (eq_dec: forall (x y: A), {x = y} + {x <> y})
