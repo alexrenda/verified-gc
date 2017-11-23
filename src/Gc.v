@@ -1,5 +1,5 @@
 Require Import Gc.Language.
-Require Import List ListSet.
+Require Import List ListSet Equality.
 
 Inductive addresing_string : Type :=
 | TermStr : addresing_string
@@ -25,7 +25,7 @@ Fixpoint mark_ptr (fuel:nat) (p: ptr) (h: heap_t) : set ptr :=
            (fun v =>
               match v with
               | Int _ => List.nil
-              | Pointer p => mark_ptr n p h
+              | Pointer p' => mark_ptr n p' h
               end
            ) vs)
         (set_add ptr_eq_dec p (empty_set ptr))
@@ -83,6 +83,23 @@ Proof.
     crush.
 Admitted.
 
+Lemma fold_union_2 :
+  forall {A: Type} (eq_dec: forall (x y: A), {x = y} + {x <> y})
+         (vs: list (set A)) (acc1 acc2: set A) (a: A),
+    set_In a (List.fold_left (set_union eq_dec) vs (set_union eq_dec acc1 acc2)) ->
+    set_In a (set_union eq_dec (List.fold_left (set_union eq_dec) vs acc1) acc2).
+Proof.
+  intros.
+  induction vs.
+  * crush.
+  * induction a0.
+    + crush.
+    + pose (eq_dec a0 a).
+      destruct s.
+      - admit.
+      - crush.
+Admitted.
+
 (* Must be proved for liveness *)
 Theorem mark_ptr_correct :
   forall h p p' f,
@@ -90,38 +107,40 @@ Theorem mark_ptr_correct :
     exists address, addresses h p address p'
 .
 Proof.
-  Hint Constructors addresses.
+  Hint Constructors addresses addresing_string.
   intros.
-  induction f.
+  dependent induction f generalizing p.
   - unfold mark_ptr in H.
     intuition.
-  - assert (H0 := H).
-    unfold mark_ptr in H.
+  - unfold mark_ptr in H.
     fold mark_ptr in H.
-    destruct (heap_get_struct p h) eqn:?.
-    * induction l.
-
-(*
-      + simpl in H.
-        induction H; intuition.
-        exists TermStr.
-        intuition.
-    * intuition.
-    induction l.
+    destruct (heap_get_struct p h) eqn:?; intuition.
+    assert (exists vs, heap_maps_struct h p vs); eauto.
+    remember (heap_maps_struct_indexable p h l).
+    assert (forall a, In a l -> exists k, heap_maps h p k a); intuition.
+    clear Heqo.
+    clear Heqe.
+    dependent induction l.
     * crush.
-      exists TermStr.
-      dintuition.
-      apply TermAddresses.
-      admit.
-    * unfold map in H.
-      cbv in H.
+      eauto.
+    * rewrite map_cons in H.
       destruct a eqn:?.
       + crush.
-      + unfold fold_left in H.
-        fold fold_left in H.
-      eapply set_union_elim in H.
-*)
-Admitted.
+      + simpl in H.
+        apply fold_union_2 in H; auto.
+        apply set_union_elim in H.
+        destruct H.
+        -- apply IHl; intuition.
+        -- specialize IHf with p0.
+           intuition.
+           edestruct H2.
+           assert (exists k, heap_maps h p k a).
+           ** crush.
+           ** edestruct H4.
+              exists (FollowStr x0 x).
+              eapply (FollowAddresses h p p0 p'); subst; eauto.
+Qed.
+
 
 Fixpoint mark (fuel:nat) (r: roots_t) (h: heap_t) : set ptr :=
   match r with

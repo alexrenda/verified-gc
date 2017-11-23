@@ -220,6 +220,15 @@ Definition heap_maps_struct (h: heap_t) (p: ptr) (vs: list val) : Prop :=
   heap_get_struct p h = Some vs
 .
 
+(* Must be proven for liveness *)
+Theorem heap_maps_struct_indexable : forall p h vs,
+  heap_get_struct p h = Some vs ->
+  forall a, List.In a vs -> 
+  exists k, heap_maps h p k a
+.
+Proof.
+Admitted.
+
 Record state := mkState {
                     roots : roots_t;
                     heap : heap_t;

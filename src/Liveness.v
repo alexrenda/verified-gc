@@ -1,9 +1,6 @@
 Require Import Gc.Language Gc.Gc.
 Require Import List ListSet CpdtTactics Equality Wf Nat Wf_nat.
 
-Definition roots_len_induction := well_founded_induction (
-  well_founded_inv_rel_inv_lt_rel (roots_t) (fun l => fun x => length l = x)).
-
 Lemma subset_property: forall st v p p0 roots,
   (exists address v0 p', roots_maps (roots) v0 p' /\ addresses (heap st) p' address p0) ->
   (exists address v0 p', roots_maps ((v, p) :: roots) v0 p' /\ addresses (heap st) p' address p0)
