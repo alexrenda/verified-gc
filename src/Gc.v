@@ -243,99 +243,27 @@ Theorem heap_marks :
     exists f, set_In p' (mark f (roots s) (heap s))
 .
 Proof.
-(*
-  induction address.
+  intros address s.
+  induction (roots s).
+  * crush.
   * intros.
-    exists 1.
-    inversion H0 ; clear H0.
-    inversion H1 ; clear H1.
-    inversion H0 ; subst.
-    unfold mark.
-    induction (roots s). auto.
     destruct a.
-    inversion H.
-    - injection H1. intros. subst. clear H1.
-
-      unfold mark_ptr.
-      fold mark_ptr.
-      fold mark.
-      edestruct set_mem eqn:?.
-      specialize (set_mem_correct1 ptr_eq_dec p' (mark 1 r (heap s)) Heqb). auto.
-      destruct (heap_get_struct p' (heap s)) eqn:?.
-      + injection H4. intros. subst. clear H4.
-        clear H0.
-        induction x.
-        ** eapply set_add_intro2. crush.
-        ** crush.
-
-
-
-
-      inversion H. injection H1. intros. subst. clear H1. crush.
-
-    destruct a eqn:?.
-    subst.
-    destruct H. injection H ; intros ; subst.
-    - induction (heap s).
-      + crush.
-      + inversion H0.
-        destruct a.
-        destruct (ptr_eq_dec p p'); subst.
-        ** injection H2. intros. subst. clear H2.
-           crush.
-           edestruct ptr_eq_dec in H4.
-            -- admit.
-            -- contradiction n. auto.
-        **
-           unfold mark.
-           unfold mark_ptr.
-           fold mark_ptr.
-           crush.
-        destruct (set_mem ptr_eq_dec p' Datatypes.nil) eqn:? ; crush.
-
-
-        crush.
-        destruct p.
-
-        crush.
-    - intuition.
- auto.    unfold roots_maps in H.
-
-    destruct (var_eq_dec v0 v) eqn:?.
-    - subst.
-      unfold roots_maps in H.
-      unfold List.In in H.
-      destruct H.
-      + crush.
-        induction (heap s).
-        ** crush.
-        ** crush.
-        fold mark_ptr.
-      inversion H.
-      inversion H.
-    crush.
-    subst.
-    u
-
-    induction (roots s).
-    - unfold roots_maps in H.
-      inversion H.
-    - unfold roots_maps in H.
-      unfold List.In in H.
-      destruct a.
-      destruct H eqn:?.
-      + subst.
-        inversion H1.
-
-    exists 1.
-    inversion H0.
-    inversion H1.
-    unfold mark.
-    unfold mark.
-    subst.
-    inversion H0.
-*)
-Admitted.
+    specialize IHr with v p p'.
+    unfold roots_maps in *.
+    specialize (in_inv H). intros.
+    destruct H1.
+     - clear H. injection H1. clear H1. intros. subst.
+       unfold mark. fold mark.
+       specialize (mark_ptr_marks address (heap s) p p' H0).
+       intros.
+       inversion H. clear H.
+       exists x.
+       eapply set_union_intro2. auto.
+     - intuition.
+       inversion H3. clear H3.
+       exists x.
+       crush.
+Qed.
 
 (* Must be proved for liveness *)
 Lemma pointer_equivalence :
