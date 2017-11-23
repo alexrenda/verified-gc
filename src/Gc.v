@@ -52,7 +52,9 @@ Proof.
     unfold heap_get in *.
     destruct (ptr_eq_dec p0 p) eqn:?.
     - exists l. crush.
+      destruct (ptr_eq_dec p p); crush.
     - crush.
+      destruct (ptr_eq_dec p0 p); crush.
 Qed.
 
 Lemma fold_union_1 :
