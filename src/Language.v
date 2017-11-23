@@ -56,7 +56,7 @@ match h with
 end.
 
 (** val evaluation and helpers *)
-Fixpoint heap_get (p:ptr) (k: nat) (h:heap_t) : option val :=
+Definition heap_get (p:ptr) (k: nat) (h:heap_t) : option val :=
 match heap_get_struct p h with
 | None => None
 | Some hv => List.nth_error hv k
@@ -125,7 +125,7 @@ Proof.
   * fold heap_get_struct in H0.
     destruct (ptr_eq_dec p0 0) in H0; intuition.
   * fold heap_get_struct in H0.
-    destruct (ptr_eq_dec p0 (S p)) in H0; intuition. 
+    destruct (ptr_eq_dec p0 (S p)) in H0; intuition.
 Qed.
 
 Lemma set_nth_sets : forall {A: Type} k v (l l0: list A),
@@ -227,7 +227,7 @@ Definition heap_maps_struct (h: heap_t) (p: ptr) (vs: list val) : Prop :=
 (* Must be proven for liveness *)
 Theorem heap_maps_struct_indexable : forall p h vs,
   heap_get_struct p h = Some vs ->
-  forall a, List.In a vs -> 
+  forall a, List.In a vs ->
   exists k, heap_maps h p k a
 .
 Proof.
