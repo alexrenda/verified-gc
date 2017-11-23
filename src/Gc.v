@@ -90,6 +90,10 @@ Lemma fold_left_irrelevance :
     set_In a (List.fold_left (set_union eq_dec) vs acc) <->
     set_In a (List.fold_left (set_union eq_dec) vs nil) \/ set_In a acc.
 Proof.
+  intuition.
+  * admit.
+  * admit.
+  * apply (fold_union_1 eq_dec vs acc ((fold_left (set_union eq_dec) vs acc)) a); intuition.
 Admitted.
 
 
