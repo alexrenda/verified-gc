@@ -153,6 +153,6 @@ Proof.
   pose H as temp.
   apply (mark_sweep_liveness_1 st p vs h) in temp.
   * destruct temp as [a [v  [p' [H1 H2]]]].
-    eapply paths_maintained in H2; eauto.
+    eapply pointer_equivalence in H2; eauto.
   * auto.
 Qed.

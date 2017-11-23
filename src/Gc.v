@@ -90,6 +90,37 @@ Theorem mark_ptr_correct :
     exists address, addresses h p address p'
 .
 Proof.
+  Hint Constructors addresses.
+  intros.
+  induction f.
+  - unfold mark_ptr in H.
+    intuition.
+  - assert (H0 := H).
+    unfold mark_ptr in H.
+    fold mark_ptr in H.
+    destruct (heap_get_struct p h) eqn:?.
+    * induction l.
+
+(*
+      + simpl in H.
+        induction H; intuition.
+        exists TermStr.
+        intuition.
+    * intuition.
+    induction l.
+    * crush.
+      exists TermStr.
+      dintuition.
+      apply TermAddresses.
+      admit.
+    * unfold map in H.
+      cbv in H.
+      destruct a eqn:?.
+      + crush.
+      + unfold fold_left in H.
+        fold fold_left in H.
+      eapply set_union_elim in H.
+*)
 Admitted.
 
 Fixpoint mark (fuel:nat) (r: roots_t) (h: heap_t) : set ptr :=
@@ -217,21 +248,12 @@ Proof.
 Admitted.
 
 (* Must be proved for liveness *)
-Lemma paths_maintained:
-  forall st address p p' h,
-    addresses (heap st) p address p' -> 
-    sweep (heap st) (mark (fuel st) (roots st) (heap st)) = h ->
-    addresses h p address p'
-.
-Proof.
-  intros.
-Admitted.
-
 Lemma pointer_equivalence :
-  forall address s v p p',
+  forall address s v p p' h,
     roots_maps (roots s) v p ->
     addresses (heap s) p address p' ->
-    addresses (gc (fuel s) (roots s) (heap s)) p address p'.
+    sweep (heap s) (mark (fuel s) (roots s) (heap s)) = h ->
+    addresses h p address p'.
 Proof.
 (*  induction address.
   * intros.

@@ -165,9 +165,10 @@ Proof.
         remember H0; clear Heqe0; eapply heap_set_ptr_no_change in e0.
         subst.
         unfold heap_set_k in H0.
-        destruct (ptr_eq_dec p p) in H0; crush.
-        destruct (set_nth k v' l0) eqn:?; crush.
-        try eapply set_nth_sets in Heqo; crush.
+        destruct (ptr_eq_dec p p) in H0; intuition.
+        destruct (set_nth k v' l0) eqn:?; try congruence.
+        eapply set_nth_sets in Heqo.
+        crush.
       + fold heap_get.
         destruct a.
         remember H0; clear Heqe; eapply heap_set_ptr_no_change in e.
