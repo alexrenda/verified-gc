@@ -231,22 +231,12 @@ Theorem heap_maps_struct_indexable : forall p h vs,
   exists k, heap_maps h p k a
 .
 Proof.
+  Hint Resolve In_nth_error.
+  Hint Unfold heap_maps heap_get.
   intros.
   unfold heap_maps.
   unfold heap_get.
-  destruct p.
-  - destruct (heap_get_struct 0 h).
-    * inversion H.
-      subst.
-      apply In_nth_error.
-      auto.
-    * congruence.
-  - destruct (heap_get_struct (S p) h).
-    * inversion H.
-      subst.
-      apply In_nth_error.
-      auto.
-    * congruence.
+  destruct p; crush.
 Qed.
 
 Record state := mkState {

@@ -1,5 +1,5 @@
 Require Import Gc.Language.
-Require Import List ListSet Equality.
+Require Import List ListSet Equality CpdtTactics.
 
 Inductive addresing_string : Type :=
 | TermStr : addresing_string
@@ -15,6 +15,7 @@ Inductive addresses : heap_t -> ptr -> addresing_string -> ptr -> Prop :=
     addresses h p' rest p'' ->
     addresses h p (FollowStr k rest) p''
 .
+
 
 Fixpoint mark_ptr (fuel:nat) (p: ptr) (h: heap_t) : set ptr :=
   match fuel, heap_get_struct p h with
@@ -32,8 +33,6 @@ Fixpoint mark_ptr (fuel:nat) (p: ptr) (h: heap_t) : set ptr :=
   | _, _ => List.nil
   end
 .
-
-Require Import CpdtTactics.
 
 Lemma fold_union_1 :
   forall {A: Type} (eq_dec: forall (x y: A), {x = y} + {x <> y})
@@ -60,6 +59,7 @@ Theorem mark_ptr_marks :
     exists f, set_In p' (mark_ptr f p h)
 .
 Proof.
+  (*
   induction address.
   * exists 1.
     inversion H.
@@ -81,7 +81,17 @@ Proof.
     specialize (IHaddress h p p').
     intuition.
     crush.
+  *)
 Admitted.
+
+Lemma fold_left_irrelevance : 
+  forall {A: Type} (eq_dec: forall (x y: A), {x = y} + {x <> y})
+         (vs: list (set A)) (acc: set A) (a: A),
+    set_In a (List.fold_left (set_union eq_dec) vs acc) <->
+    set_In a (List.fold_left (set_union eq_dec) vs nil) \/ set_In a acc.
+Proof.
+Admitted.
+
 
 Lemma fold_union_2 :
   forall {A: Type} (eq_dec: forall (x y: A), {x = y} + {x <> y})
@@ -89,16 +99,20 @@ Lemma fold_union_2 :
     set_In a (List.fold_left (set_union eq_dec) vs (set_union eq_dec acc1 acc2)) ->
     set_In a (set_union eq_dec (List.fold_left (set_union eq_dec) vs acc1) acc2).
 Proof.
+  Hint Resolve set_union_elim set_union_intro fold_left_irrelevance.
+  Hint Resolve <- fold_left_irrelevance.
   intros.
-  induction vs.
-  * crush.
-  * induction a0.
-    + crush.
-    + pose (eq_dec a0 a).
-      destruct s.
-      - admit.
-      - crush.
-Admitted.
+  eapply set_union_intro.
+  eapply fold_left_irrelevance in H.
+  pose (set_In_dec eq_dec a acc1).
+  destruct s.
+  - intuition.
+  - inversion H.
+    + intuition.
+    + right.
+      apply set_union_elim in H0.
+      destruct H0; intuition.
+Qed.
 
 (* Must be proved for liveness *)
 Theorem mark_ptr_correct :
