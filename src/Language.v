@@ -143,13 +143,13 @@ Proof.
       + discriminate.
 Qed.
 
+(*
 Theorem heap_set_sets : forall h p k v v' h',
     heap_get p k h = Some v ->
     heap_set_k h p k v' = Some h' ->
     heap_get p k h' = Some v'
 .
 Proof.
-  (*
   Hint Resolve heap_set_ptr_no_change heap_set_first_neq heap_get_first_neq set_nth_sets.
   induction h; intros.
   * crush.
@@ -177,9 +177,10 @@ Proof.
         remember H0; clear Heqe; eapply heap_set_ptr_no_change in e.
         subst.
         eauto.
-*)
 Admitted.
+*)
 
+(*
 Lemma set_nth_does_not_set : forall {A: Type} k k' v (l l0: list A),
   k <> k' ->
   List.nth_error l k' = Some v ->
@@ -187,7 +188,9 @@ Lemma set_nth_does_not_set : forall {A: Type} k k' v (l l0: list A),
   List.nth_error l0 k' = Some v.
 Proof.
 Admitted.
+*)
 
+(*
 Theorem heap_set_maintains : forall h h' p k v v',
     heap_set_k h p k v' = Some h' ->
     forall p' k',
@@ -214,7 +217,7 @@ Proof.
         ** admit.
       + admit.
 Admitted.
-
+*)
 
 Definition heap_maps (h: heap_t) (p: ptr) (k: nat) (v: val) : Prop :=
   heap_get p k h = Some v
