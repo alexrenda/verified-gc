@@ -16,89 +16,27 @@ Inductive addresses : heap_t -> ptr -> addresing_string -> ptr -> Prop :=
     addresses h p (FollowStr k rest) p''
 .
 
+Fixpoint union_pointers (l : list (set ptr)) : set ptr :=
+  match l with
+  | nil => (empty_set ptr)
+  | h::t => (set_union ptr_eq_dec h  (union_pointers t))
+  end.
 
 Fixpoint mark_ptr (fuel:nat) (p: ptr) (h: heap_t) : set ptr :=
   match fuel, heap_get_struct p h with
   | S n, Some vs =>
-      List.fold_left
-        (set_union ptr_eq_dec)
-        (List.map
-           (fun v =>
+      (set_union ptr_eq_dec (set_add ptr_eq_dec p (empty_set ptr))
+        (union_pointers 
+          (List.map
+            (fun v =>
               match v with
               | Int _ => List.nil
               | Pointer p' => mark_ptr n p' h
               end
-           ) vs)
-        (set_add ptr_eq_dec p (empty_set ptr))
+           ) vs)))
   | _, _ => List.nil
   end
 .
-
-Lemma heap_maps_implies_heap_get :
-  forall h p n v,
-  heap_maps h p n v ->
-  exists vs,
-    heap_get_struct p h = Some vs
-    /\
-    List.nth_error vs n = Some v
-.
-Proof.
-(*
-  induction h ; intros.
-  * inversion H.
-  * specialize IHh with p n v.
-    destruct a.
-    unfold heap_get_struct.
-    unfold heap_maps in *.
-    unfold heap_get in *.
-    destruct (ptr_eq_dec p0 p) eqn:?.
-    - exists l. crush.
-      destruct (ptr_eq_dec p p); crush.
-    - crush.
-      destruct (ptr_eq_dec p0 p); crush.
-*)
-Admitted.
-
-Lemma fold_union_1 :
-  forall {A: Type} (eq_dec: forall (x y: A), {x = y} + {x <> y})
-         (vs: list (set A)) (acc acc': set A) (a: A),
-    List.fold_left (set_union eq_dec) vs acc = acc' ->
-    set_In a acc ->
-    set_In a acc'.
-Proof.
-  induction vs.
-  * intros.
-    subst.
-    unfold List.fold_left. auto.
-  * intros.
-    specialize (fold_left_app (set_union eq_dec) (List.cons a List.nil) vs acc).
-    crush.
-    specialize (IHvs (set_union eq_dec acc a) (List.fold_left (set_union eq_dec) vs (set_union eq_dec acc a)) a0).
-    assert (set_In a0 (set_union eq_dec acc a)). eapply set_union_intro1. auto.
-    intuition.
-Qed.
-
-Lemma fold_union_nth_error :
-  forall {A: Type} (eq_dec: forall (x y: A), {x = y} + {x <> y})
-         (vs: list (set A)) (n: nat) (v acc : set A) (a: A),
-    List.nth_error vs n = Some v ->
-    set_In a v ->
-    set_In a (List.fold_left (set_union eq_dec) vs acc).
-Proof.
-  induction vs.
-  * intros.
-    specialize (nth_error_In nil n H).
-    intros.
-    inversion H1.
-  * induction n ; intros.
-    - inversion H. clear H.
-      subst.
-      crush.
-      eapply fold_union_1. crush.
-      eapply (set_union_intro2). auto.
-    - crush.
-      eapply IHvs ; crush.
-Qed.
 
 Theorem mark_ptr_marks :
   forall address h p p',
@@ -114,7 +52,7 @@ Proof.
     exists 1.
     unfold mark_ptr.
     rewrite H.
-    eapply fold_union_1 ; crush.
+    apply set_union_iff; crush.
   * intros.
     inversion H. clear H.
     subst.
@@ -134,102 +72,17 @@ Proof.
            | Pointer p'1 => mark_ptr x p'1 h
            end) n x0 H1).
     intros.
-    eapply fold_union_nth_error.
-    eapply H2.
-    auto.
-Qed.
-
-Lemma fold_left_acc_irrelevence :
-  forall {A: Type} (eq_dec: forall (x y: A), {x = y} + {x <> y})
-         (vs: list (set A)) (acc acc': set A) (a: A),
-    set_In a (List.fold_left (set_union eq_dec) vs acc) ->
-    ~ set_In a acc ->
-    set_In a (List.fold_left (set_union eq_dec) vs acc').
-Proof.
+    apply set_union_iff.
+    crush.
 Admitted.
 
-Lemma fold_left_irrelevance_forward :
-  forall {A: Type} (eq_dec: forall (x y: A), {x = y} + {x <> y})
-         (vs: list (set A)) (acc acc': set A) (a: A),
-    set_In a (List.fold_left (set_union eq_dec) vs acc) ->
-    set_In a (List.fold_left (set_union eq_dec) vs acc') \/ set_In a acc.
-Proof.
-  Hint Resolve set_union_elim set_union_intro fold_union_1 set_union_emptyL.
-  dependent induction vs; intros.
-  * intuition.
-  * pose (set_In_dec eq_dec a0 a).
-    destruct s.
-    - left.
-      simpl in *.
-      eapply (fold_union_1 eq_dec vs (set_union eq_dec acc' a) 
-        (fold_left (set_union eq_dec) vs (set_union eq_dec acc' a)) a0); intuition.
-    - simpl in *.
-      pose (set_In_dec eq_dec a0 acc).
-      destruct s; auto.
-      specialize IHvs with acc (set_union eq_dec acc' a) a0.
-      apply IHvs.
-      eapply fold_left_acc_irrelevence in H.
-      + instantiate (1 := acc) in H.
-        intuition.
-      + intuition.
-        apply set_union_elim in H0.
-        intuition.
-Qed.
-
-Lemma fold_left_irrelevance :
-  forall {A: Type} (eq_dec: forall (x y: A), {x = y} + {x <> y})
-         (vs: list (set A)) (acc: set A) (a: A),
-    set_In a (List.fold_left (set_union eq_dec) vs acc) <->
-    set_In a (List.fold_left (set_union eq_dec) vs nil) \/ set_In a acc.
-Proof.
-  Hint Resolve set_union_iff fold_left_irrelevance_forward.
-  Hint Resolve <- set_union_iff.
-  intuition.
-  * dependent induction vs.
-    - intuition.
-    - simpl in *.
-      pose (set_In_dec eq_dec a0 a).
-      destruct s.
-      + eapply (fold_union_1 eq_dec vs (set_union eq_dec acc a)
-            (fold_left (set_union eq_dec) vs (set_union eq_dec acc a)) a0); intuition.
-      + specialize IHvs with (set_union eq_dec acc a) a0.
-        apply IHvs.
-        eapply fold_left_irrelevance_forward in H0.
-        instantiate (1 := nil) in H0.
-        destruct H0; intuition.
-        apply set_union_emptyL in H.
-        congruence.
-  * apply (fold_union_1 eq_dec vs acc ((fold_left (set_union eq_dec) vs acc)) a); intuition.
-Qed.
-
-Lemma fold_union_2 :
-  forall {A: Type} (eq_dec: forall (x y: A), {x = y} + {x <> y})
-         (vs: list (set A)) (acc1 acc2: set A) (a: A),
-    set_In a (List.fold_left (set_union eq_dec) vs (set_union eq_dec acc1 acc2)) ->
-    set_In a (set_union eq_dec (List.fold_left (set_union eq_dec) vs acc1) acc2).
-Proof.
-  Hint Resolve set_union_elim set_union_intro fold_left_irrelevance.
-  Hint Resolve <- fold_left_irrelevance.
-  intros.
-  eapply set_union_intro.
-  eapply fold_left_irrelevance in H.
-  pose (set_In_dec eq_dec a acc1).
-  destruct s.
-  - intuition.
-  - inversion H.
-    + intuition.
-    + right.
-      apply set_union_elim in H0.
-      destruct H0; intuition.
-Qed.
-
-(* Must be proved for liveness *)
 Theorem mark_ptr_correct :
   forall h p p' f,
     set_In p' (mark_ptr f p h) ->
     exists address, addresses h p address p'
 .
 Proof.
+  Hint Resolve set_union_emptyL.
   Hint Constructors addresses addresing_string.
   intros.
   dependent induction f generalizing p.
@@ -243,25 +96,30 @@ Proof.
     assert (forall a, In a l -> exists k, heap_maps h p k a); intuition.
     clear Heqo.
     clear Heqe.
-    dependent induction l.
-    * crush.
+    clear e.
+    apply set_union_iff in H.
+    destruct H.
+    * crush. 
       eauto.
-    * rewrite map_cons in H.
-      destruct a eqn:?.
+    * dependent induction l.
       + crush.
-      + simpl in H.
-        apply fold_union_2 in H; auto.
-        apply set_union_elim in H.
-        destruct H.
-        -- apply IHl; intuition.
-        -- specialize IHf with p0.
-           intuition.
-           edestruct H2.
-           assert (exists k, heap_maps h p k a).
-           ** crush.
-           ** edestruct H4.
-              exists (FollowStr x0 x).
-              eapply (FollowAddresses h p p0 p'); subst; eauto.
+      + rewrite map_cons in H.
+        destruct a eqn:?.
+        -- crush.
+           apply set_union_emptyL in H.
+           eauto.
+        -- simpl in H.
+           apply set_union_iff in H.
+           destruct H.
+           ** specialize IHf with p0.
+              intuition.
+              edestruct H2.
+              assert (exists k, heap_maps h p k a).
+              ++ crush.
+              ++ edestruct H4.
+                 exists (FollowStr x0 x).
+                 eapply (FollowAddresses h p p0 p'); subst; eauto.
+           ** apply IHl; intuition.
 Qed.
 
 
@@ -295,6 +153,7 @@ Theorem heap_marks :
     exists f, set_In p' (mark f (roots s) (heap s))
 .
 Proof.
+  Hint Resolve set_union_iff.
   intros address s.
   induction (roots s).
   * crush.
@@ -304,17 +163,21 @@ Proof.
     unfold roots_maps in *.
     specialize (in_inv H). intros.
     destruct H1.
-     - clear H. injection H1. clear H1. intros. subst.
-       unfold mark. fold mark.
-       specialize (mark_ptr_marks address (heap s) p p' H0).
-       intros.
-       inversion H. clear H.
-       exists x.
-       eapply set_union_intro2. auto.
-     - intuition.
-       inversion H3. clear H3.
-       exists x.
-       crush.
+    - clear H. injection H1. clear H1. intros. subst.
+      unfold mark. fold mark.
+      specialize (mark_ptr_marks address (heap s) p p' H0).
+      intros.
+      inversion H. clear H.
+      exists x.
+      eapply set_union_intro2. auto.
+    - intuition.
+      inversion H3. clear H3.
+      exists x.
+      crush.
+      + apply set_union_iff.
+        crush.
+      + apply set_union_iff.
+        crush.
 Qed.
 
 (* Must be proved for liveness *)

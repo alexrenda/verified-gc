@@ -239,6 +239,29 @@ Proof.
   destruct p; crush.
 Qed.
 
+Lemma heap_maps_implies_heap_get :
+  forall h p n v,
+  heap_maps h p n v ->
+  exists vs,
+    heap_get_struct p h = Some vs
+    /\
+    List.nth_error vs n = Some v
+.
+Proof.
+  induction h ; intros.
+  * inversion H.
+  * specialize IHh with p n v.
+    destruct a.
+    unfold heap_get_struct.
+    unfold heap_maps in *.
+    unfold heap_get in *.
+    destruct (ptr_eq_dec p0 p) eqn:?.
+    - exists l. crush.
+      destruct (ptr_eq_dec p p); crush.
+    - crush.
+      destruct (ptr_eq_dec p0 p); crush.
+Qed.
+
 Record state := mkState {
                     roots : roots_t;
                     heap : heap_t;
