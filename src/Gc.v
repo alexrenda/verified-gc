@@ -43,6 +43,7 @@ Lemma heap_maps_implies_heap_get :
     List.nth_error vs n = Some v
 .
 Proof.
+(*
   induction h ; intros.
   * inversion H.
   * specialize IHh with p n v.
@@ -55,7 +56,8 @@ Proof.
       destruct (ptr_eq_dec p p); crush.
     - crush.
       destruct (ptr_eq_dec p0 p); crush.
-Qed.
+*)
+Admitted.
 
 Lemma fold_union_1 :
   forall {A: Type} (eq_dec: forall (x y: A), {x = y} + {x <> y})
@@ -137,18 +139,68 @@ Proof.
     auto.
 Qed.
 
+Lemma fold_left_acc_irrelevence :
+  forall {A: Type} (eq_dec: forall (x y: A), {x = y} + {x <> y})
+         (vs: list (set A)) (acc acc': set A) (a: A),
+    set_In a (List.fold_left (set_union eq_dec) vs acc) ->
+    ~ set_In a acc ->
+    set_In a (List.fold_left (set_union eq_dec) vs acc').
+Proof.
+Admitted.
+
+Lemma fold_left_irrelevance_forward :
+  forall {A: Type} (eq_dec: forall (x y: A), {x = y} + {x <> y})
+         (vs: list (set A)) (acc acc': set A) (a: A),
+    set_In a (List.fold_left (set_union eq_dec) vs acc) ->
+    set_In a (List.fold_left (set_union eq_dec) vs acc') \/ set_In a acc.
+Proof.
+  Hint Resolve set_union_elim set_union_intro fold_union_1 set_union_emptyL.
+  dependent induction vs; intros.
+  * intuition.
+  * pose (set_In_dec eq_dec a0 a).
+    destruct s.
+    - left.
+      simpl in *.
+      eapply (fold_union_1 eq_dec vs (set_union eq_dec acc' a) 
+        (fold_left (set_union eq_dec) vs (set_union eq_dec acc' a)) a0); intuition.
+    - simpl in *.
+      pose (set_In_dec eq_dec a0 acc).
+      destruct s; auto.
+      specialize IHvs with acc (set_union eq_dec acc' a) a0.
+      apply IHvs.
+      eapply fold_left_acc_irrelevence in H.
+      + instantiate (1 := acc) in H.
+        intuition.
+      + intuition.
+        apply set_union_elim in H0.
+        intuition.
+Qed.
+
 Lemma fold_left_irrelevance :
   forall {A: Type} (eq_dec: forall (x y: A), {x = y} + {x <> y})
          (vs: list (set A)) (acc: set A) (a: A),
     set_In a (List.fold_left (set_union eq_dec) vs acc) <->
     set_In a (List.fold_left (set_union eq_dec) vs nil) \/ set_In a acc.
 Proof.
+  Hint Resolve set_union_iff fold_left_irrelevance_forward.
+  Hint Resolve <- set_union_iff.
   intuition.
-  * admit.
-  * admit.
+  * dependent induction vs.
+    - intuition.
+    - simpl in *.
+      pose (set_In_dec eq_dec a0 a).
+      destruct s.
+      + eapply (fold_union_1 eq_dec vs (set_union eq_dec acc a)
+            (fold_left (set_union eq_dec) vs (set_union eq_dec acc a)) a0); intuition.
+      + specialize IHvs with (set_union eq_dec acc a) a0.
+        apply IHvs.
+        eapply fold_left_irrelevance_forward in H0.
+        instantiate (1 := nil) in H0.
+        destruct H0; intuition.
+        apply set_union_emptyL in H.
+        congruence.
   * apply (fold_union_1 eq_dec vs acc ((fold_left (set_union eq_dec) vs acc)) a); intuition.
-Admitted.
-
+Qed.
 
 Lemma fold_union_2 :
   forall {A: Type} (eq_dec: forall (x y: A), {x = y} + {x <> y})
