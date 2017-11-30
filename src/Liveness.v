@@ -15,44 +15,35 @@ Proof.
   crush.
 Qed.
 
+
 Lemma mark_liveness_1 :
-  forall st p vs,
-    set_In p (mark (fuel st) (roots st) (heap st)) ->
-    heap_maps_struct (heap st) p vs ->
+  forall r h p vs,
+    set_In p (mark r h) ->
+    heap_maps_struct h p vs ->
     exists address v p',
-      roots_maps (roots st) v p'
+      roots_maps r v p'
       /\
-      addresses (heap st) p' address p
+      addresses h p' address p
 .
 Proof.
   Hint Unfold heap_maps_struct heap_get_struct roots_maps.
   Hint Resolve subset_property.
-  intro st.
-  remember (fuel st) as fuel.
-  induction fuel; intros.
-  * unfold mark in H.
-    remember (roots st) as roots.
-    induction roots in H.
-    + intuition.
-    + fold mark in *. 
-      unfold mark_ptr in H.
-      destruct a in H.
-      unfold set_union in H.
-      intuition.
-  * unfold mark in H.
-    induction (roots st).
-    + intuition.
-    + fold mark in H, IHr.
-      dependent destruction a.
-      apply set_union_elim in H.
-      destruct H.
-      - intuition.
-      - apply mark_ptr_correct in H.
-        edestruct H.
-        exists x.
-        exists v.
-        exists p.
-        intuition.
+  induction r. crush.
+  intros h p vs H.
+
+  unfold mark in H ; fold mark in H.
+  destruct a.
+  specialize (set_union_elim _ _ _ _ H). clear H.
+  intros.
+  destruct H.
+  * specialize (IHr h p vs).
+    crush.
+    exists x, x0, x1. crush.
+  * specialize (mark_ptr_correct h p0 p (length h)).
+    intros. intuition.
+    destruct H2.
+    exists x, v, p0.
+    crush.
 Qed.
 
 Lemma not_in_set_neq :
@@ -67,7 +58,7 @@ Qed.
 
 Lemma sweep_actually_sweeps :
   forall h h' ptrs p vs,
-    sweep h ptrs = h' -> 
+    sweep h ptrs = h' ->
     heap_maps_struct h' p vs ->
     set_In p ptrs /\ heap_maps_struct h p vs
 .
@@ -94,7 +85,7 @@ Proof.
         unfold heap_get_struct.
         fold heap_get_struct.
         edestruct ptr_eq_dec.
-        ** subst. 
+        ** subst.
            unfold heap_maps_struct in H0.
            unfold heap_get_struct in H0.
            fold heap_get_struct in H0.
@@ -119,7 +110,7 @@ Qed.
 
 Lemma mark_sweep_liveness_1 :
   forall st p vs h,
-    sweep (heap st) (mark (fuel st) (roots st) (heap st)) = h ->
+    sweep (heap st) (mark (roots st) (heap st)) = h ->
     heap_maps_struct h p vs ->
     exists address v p',
       roots_maps (roots st) v p'
@@ -128,7 +119,7 @@ Lemma mark_sweep_liveness_1 :
 .
 Proof.
   intros.
-  apply (sweep_actually_sweeps (heap st) h (mark (fuel st) (roots st) (heap st)) p vs) in H.
+  apply (sweep_actually_sweeps (heap st) h (mark (roots st) (heap st)) p vs) in H.
   * destruct H.
     eapply (mark_liveness_1).
     + apply H.
@@ -138,7 +129,7 @@ Qed.
 
 Theorem liveness_1 :
   forall st p vs h,
-    (gc (fuel st) (roots st) (heap st)) = h ->
+    (gc (roots st) (heap st)) = h ->
     heap_maps_struct h p vs ->
     exists address v p',
       roots_maps (roots st) v p'
@@ -151,5 +142,7 @@ Proof.
   apply (mark_sweep_liveness_1 st p vs h) in temp.
   * destruct temp as [a [v  [p' [H1 H2]]]].
     eapply pointer_equivalence in H2; eauto.
+    exists a, v, p'.
+    crush.
   * auto.
 Qed.

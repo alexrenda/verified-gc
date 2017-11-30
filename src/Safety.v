@@ -5,7 +5,7 @@ Inductive execution : state -> list com -> output_t -> Prop :=
 | NilExecution : forall state,
     execution state List.nil (output state)
 | GcExecution : forall state coms out,
-    execution (mkState (roots state) (gc (fuel state) (roots state) (heap state)) (output state) (fuel state)) coms out ->
+    execution (mkState (roots state) (gc (roots state) (heap state)) (output state)) coms out ->
     execution state coms out
 | ComExecution : forall com coms state state' out,
     small_step com state state' ->

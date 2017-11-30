@@ -269,16 +269,15 @@ Record state := mkState {
                     roots : roots_t;
                     heap : heap_t;
                     output: output_t;
-                    fuel: nat;
                   }.
 
 Inductive eval_valexp : valexp -> state -> val -> Prop :=
 | IntExpEval : forall n s,
     eval_valexp (IntExp n) s (Int n)
-| DerefEval : forall rv hv p k r h t f,
+| DerefEval : forall rv hv p k r h t,
     roots_maps r rv p ->
     heap_maps h p k hv ->
-    eval_valexp (Deref rv k) (mkState r h t f) hv
+    eval_valexp (Deref rv k) (mkState r h t) hv
 .
 
 (** fresh heap pointer is 1 more than the maximum heap ptr *)
@@ -315,7 +314,7 @@ Inductive small_step : com -> state -> state -> Prop :=
          (set_var var p (roots state))
          ((p, vals) :: (heap state))
          (output state)
-         (S (fuel state)))
+      )
 | AssignVarStep : forall var vexp p state,
     eval_valexp vexp state (Pointer p) ->
     small_step
@@ -325,7 +324,6 @@ Inductive small_step : com -> state -> state -> Prop :=
          (set_var var p (roots state))
          (heap state)
          (output state)
-         (S (fuel state))
       )
 | AssignMemStep : forall var ptr k vexp val state h',
     roots_maps (roots state) var ptr ->
@@ -338,7 +336,6 @@ Inductive small_step : com -> state -> state -> Prop :=
          (roots state)
          (h')
          (output state)
-         (S (fuel state))
       )
 | DropStep : forall var state,
     small_step
@@ -348,7 +345,7 @@ Inductive small_step : com -> state -> state -> Prop :=
          (remove_var var (roots state))
          (heap state)
          (output state)
-         (S (fuel state)))
+      )
 | OutStep : forall vexp n state,
     eval_valexp vexp state (Int n) ->
     small_step
@@ -358,5 +355,5 @@ Inductive small_step : com -> state -> state -> Prop :=
          (roots state)
          (heap state)
          (List.cons n (output state))
-         (S (fuel state)))
+      )
 .
