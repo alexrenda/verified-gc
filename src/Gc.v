@@ -355,10 +355,10 @@ Proof.
 Qed.
 
 Lemma address_extend :
-  forall address h p p' p'' n n' v,
+  forall address h p p' p'' n v,
     addresses h p address p' ->
     heap_maps h p' n (Pointer p'') ->
-    heap_maps h p'' n' v ->
+    heap_maps_struct h p'' v ->
     (exists address', addresses h p address' p'').
 Proof.
   induction address ; intros.
@@ -370,7 +370,7 @@ Proof.
     destruct (heap_get_struct p'' h) eqn:?. exists l. auto. crush.
   * crush.
     inversion H. clear H. subst.
-    specialize (IHaddress h p'0 p' p'' n0 n' v).
+    specialize (IHaddress h p'0 p' p'' n0 v).
     intuition.
     destruct H.
     exists (FollowStr n x).
@@ -442,65 +442,88 @@ Proof.
               ++ eapply set_union_intro2. auto.
                  destruct (ptr_eq_dec p' p). crush.
                  assert (exists x, length h = S (S x)). destruct h. crush.
-                 admit.
-                 destruct H3. rewrite H3 in H0.
-                 destruct (heap_get_struct p0 h) eqn:?.
-                 *** unfold mark_ptr in H0. fold mark_ptr in H0.
-                     rewrite Heqo in H0.
-                     specialize (set_add_elim _ _ _ _ H0).
-                     intros. destruct H4 ; subst.
-                     --- rewrite H3.
-                         unfold mark_ptr in *. fold mark_ptr in *.
-                         rewrite Heqo.
-                         eapply set_add_intro1.
-                         eapply (nth_union_pointers _ n).
-                         unfold heap_maps in H5.
+                 destruct h.
+                 *** destruct p1.
+                     assert (p1 = p).
+                     --- unfold heap_maps in H5.
                          unfold heap_get in H5.
-                         rewrite Heqo in H5.
-                         specialize (@map_nth
-                                       val
-                                       (list ptr)
-                                       (fun v : val =>
-           match v with
-           | Int _ => nil
-           | Pointer p'0 =>
-               match heap_get_struct p'0 h with
-               | Some vs =>
-                   set_add ptr_eq_dec p'0
-                     (union_pointers
-                        (map
-                           (fun v0 : val =>
-                            match v0 with
-                            | Int _ => nil
-                            | Pointer p'1 => mark_ptr x1 p'1 h
-                            end) vs))
-               | None => nil
-               end
-           end) l (Int 0) n).
-                         intros.
-                         unfold ptr in *. unfold set in *.
-                         rewrite H4. clear H4.
-                         specialize (nth_default_eq n l (Int 0)). intros.
-                         rewrite <- H4.
-                         unfold nth_default.
-                         rewrite H5.
-                         destruct x1.
-                         +++ unfold heap_maps_struct in H2.
-                             rewrite H2.
-                             eapply set_add_intro2. reflexivity.
-                         +++ crush.
-                             eapply set_add_intro2. reflexivity.
-                     --- clear H0.
-                         admit.
-                 *** inversion H1. crush. subst.
-                     unfold heap_maps in *. unfold heap_get in *.
-                     rewrite Heqo in H4. discriminate.
-           -- specialize (address_extend _ _ _ _ _ _ _ _ H1 H5 H2).
-              intros.
+                         unfold heap_get_struct in H5.
+                         destruct (ptr_eq_dec p1 p). crush. crush.
+                     --- assert (p1 = p').
+                         unfold heap_maps_struct in H2.
+                         unfold heap_get_struct in H2.
+                         destruct (ptr_eq_dec p1 p'). crush. crush.
+                         crush.
+                 *** exists (length h). auto.
+                 *** destruct H3. rewrite H3 in H0.
+                     destruct (heap_get_struct p0 h) eqn:?.
+                     --- unfold mark_ptr in H0. fold mark_ptr in H0.
+                         rewrite Heqo in H0.
+                         specialize (set_add_elim _ _ _ _ H0).
+                         intros. destruct H4 ; subst.
+                         +++ rewrite H3.
+                             unfold mark_ptr in *. fold mark_ptr in *.
+                             rewrite Heqo.
+                             eapply set_add_intro1.
+                             eapply (nth_union_pointers _ n).
+                             unfold heap_maps in H5.
+                             unfold heap_get in H5.
+                             rewrite Heqo in H5.
+                             specialize (@map_nth
+                                           val
+                                           (list ptr)
+                                           (fun v : val =>
+                                              match v with
+                                              | Int _ => nil
+                                              | Pointer p'0 =>
+                                                match heap_get_struct p'0 h with
+                                                | Some vs =>
+                                                  set_add ptr_eq_dec p'0
+                                                          (union_pointers
+                                                             (map
+                                                                (fun v0 : val =>
+                                                                   match v0 with
+                                                                   | Int _ => nil
+                                                                   | Pointer p'1 => mark_ptr x1 p'1 h
+                                                                   end) vs))
+                                                | None => nil
+                                                end
+                                              end) l (Int 0) n).
+                             intros.
+                             unfold ptr in *. unfold set in *.
+                             rewrite H4. clear H4.
+                             specialize (nth_default_eq n l (Int 0)). intros.
+                             rewrite <- H4.
+                             unfold nth_default.
+                             rewrite H5.
+                             destruct x1.
+                             **** unfold heap_maps_struct in H2.
+                                  rewrite H2.
+                                  eapply set_add_intro2. reflexivity.
+                             **** crush.
+                                  eapply set_add_intro2. reflexivity.
+                         +++ clear H0.
+
+                             specialize (address_extend _ _ _ _ _
+                                                        _ _ H1 H5 H2).
+                             intros.
+                             destruct H0.
+                             specialize (mark_ptr_marks x2 h p0 p' H0).
+                             crush.
+                     --- inversion H1. crush. subst.
+                         unfold heap_maps in *. unfold heap_get in *.
+                         rewrite Heqo in H4. discriminate.
+           -- assert (exists v, heap_maps_struct h p'0 v).
+              unfold heap_maps in H2. unfold heap_get in H2.
+              unfold heap_maps_struct. destruct (heap_get_struct p'0 h).
+              crush. exists l. auto. discriminate.
               destruct H10.
+              specialize (address_extend _ _ _ _ _ _ _ H1 H5 H10).
+              intros.
+              destruct H11.
               eapply set_union_intro2.
               eapply mark_ptr_marks.
-              apply H10.
+              apply H11.
     - intuition.
       eapply (FollowAddresses (sweep h (mark r h)) p p'0 p' n address).
       + clear - H0 H5.
@@ -520,7 +543,7 @@ Proof.
            -- crush.
            -- crush.
       + crush.
-Admitted.
+Qed.
 
 Lemma pointer_equivalence :
   forall address r h v p p',
