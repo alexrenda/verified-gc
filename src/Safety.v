@@ -1,5 +1,15 @@
 Require Import Gc.Language Gc.Gc.
 
+Theorem safety_1 :
+  forall c s s' s'',
+  small_step c s = Some s' ->
+  small_step c (gc s) = Some s''.
+Proof.
+  intros.
+  destruct c ; unfold small_step in * ; crush.
+  * unfold small_step in H.
+Qed.
+
 
 Inductive execution : state -> list com -> output_t -> Prop :=
 | NilExecution : forall state,
