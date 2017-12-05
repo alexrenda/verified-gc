@@ -709,8 +709,17 @@ Proof.
   * destruct a.
     destruct (eq_dec p b).
     - exists a. crush.
-    - admit.
-Admitted.
+    - assert (exists v : A, In (v, p) l).
+      + apply IHl. intuition.
+        destruct (split l) eqn:?.
+        unfold snd in *.
+        simpl in H.
+        rewrite Heqp0 in H.
+        crush.
+      + destruct H0.
+        exists x.
+        crush.
+Qed.
 
 Lemma heap_get_in_split :
   forall h p l,
