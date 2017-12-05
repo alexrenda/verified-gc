@@ -1,62 +1,41 @@
 Require Import List ListSet Equality CpdtTactics.
 
 (* Lemmas about split *)
-Lemma in_split_l_hd :
-  forall {A B: Type} (l: list (A * B)) (a: A) (b: B),
-    In a (fst (split ((a, b) :: l))).
+Ltac split_solver l := subst; simpl; destruct (split l) eqn:?; crush.
+
+Lemma in_split_l_ht :
+  forall {A B: Type} (l: list (A * B)) p a b (eq_dec: forall n m : A, {n = m} + {n <> m}),
+    In p (fst (split l)) \/ p = a <->
+    In p (fst (split ((a, b) :: l))).
 Proof.
   intros.
-  simpl.
-  destruct (split l). 
-  crush.
+  intuition.
+  * split_solver l.
+  * split_solver l.
+  * destruct (eq_dec p a).
+    - split_solver l.
+    - destruct (split l) eqn:?.
+      simpl in H.
+      rewrite Heqp0 in H.
+      crush.
 Qed.
 
-Lemma in_split_l_tl :
-  forall {A B: Type} (l: list (A * B)) (p o: A) (v: B),
-    In p (fst (split l)) ->
-    In p (fst (split ((o, v) :: l))).
-Proof.
-  induction l. crush.
-  crush.
-  specialize (IHl p o v).
-  destruct (split l). crush.
-Qed.
-
-Lemma in_split_l :
-  forall {A B: Type} (l: list (A * B)) (p o: A) (v: B),
-    In p (fst (split l)) \/ p = o <->
-    In p (fst (split ((o, v) :: l))).
-Proof.
-  Hint Resolve in_split_l_tl in_split_l_hd.
-Admitted.
-
-Lemma in_split_r_hd :
-  forall {A B: Type} (l: list (A * B)) (a: A) (b: B),
-    In b (snd (split ((a, b) :: l))).
+Lemma in_split_r_ht :
+  forall {A B: Type} (l: list (A * B)) p a b (eq_dec: forall n m : B, {n = m} + {n <> m}),
+    In p (snd (split l)) \/ p = b <->
+    In p (snd (split ((a, b) :: l))).
 Proof.
   intros.
-  simpl.
-  destruct (split l). 
-  crush.
+  intuition.
+  * split_solver l.
+  * split_solver l.
+  * destruct (eq_dec p b).
+    - split_solver l.
+    - destruct (split l) eqn:?.
+      simpl in H.
+      rewrite Heqp0 in H.
+      crush.
 Qed.
-
-Lemma in_split_r_tl :
-  forall {A B: Type} (l: list (A * B)) (p: B) (o: A) (v: B),
-    In p (snd (split l)) ->
-    In p (snd (split ((o, v) :: l))).
-Proof.
-  induction l. crush.
-  crush.
-  specialize (IHl p o v).
-  destruct (split l). crush.
-Qed.
-
-Lemma in_split_r :
-  forall {A B: Type} (l: list (A * B)) (o: A) (p v: B),
-    In p (snd (split l)) \/ p = v <->
-    In p (snd (split ((o, v) :: l))).
-Proof.
-Admitted.
 
 Lemma in_split_exists_l :
   forall {A B: Type} (l: list (A * B)) (p: A) (eq_dec: forall n m : A, {n = m} + {n <> m}),

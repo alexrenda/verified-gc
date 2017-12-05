@@ -716,6 +716,7 @@ Lemma heap_get_in_split :
     heap_get_struct p h = Some l ->
     set_In p (fst (split h)).
 Proof.
+  Hint Resolve ptr_eq_dec.
   induction h ; intros.
   * inversion H.
   * destruct a.
@@ -729,7 +730,7 @@ Proof.
     unfold heap_get_struct in * ; fold heap_get_struct in *.
     specialize (IHh p l).
     intuition.
-    eapply in_split_l_tl. auto.
+    eapply in_split_l_ht; auto.
 Qed.
 
 Theorem mark_monotonic_1 :
@@ -797,7 +798,7 @@ Proof.
          eapply heap_get_in_split. apply Heqo.
   - intuition.
 
-    assert (forall x y : var * ptr, {x = y} + {x <> y}). decide equality. eapply ptr_eq_dec. eapply var_eq_dec.
+    assert (forall x y : var * ptr, {x = y} + {x <> y}). decide equality. eapply var_eq_dec.
     crush.
     + destruct (In_dec H2 (v,p) r).
       ** unfold mark.
