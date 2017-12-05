@@ -52,7 +52,7 @@ Proof.
     unfold roots_maps.
     specialize (nodup_In_fwd _ _ ptr_eq_dec H1). clear H1. intros.
     specialize (set_inter_elim1 _ _ _ _ H1). clear H1. intros.
-    apply in_split_exists_fst in H1.
+    apply in_split_exists_r in H1.
     - destruct H1. exists x1. crush.
     - apply ptr_eq_dec.
 Qed.
@@ -140,7 +140,7 @@ Qed.
 
 Theorem liveness_1 :
   forall st p vs h,
-    (gc (roots st) (heap st)) = h ->
+    (gc' (roots st) (heap st)) = h ->
     heap_maps_struct h p vs ->
     exists address v p',
       roots_maps (roots st) v p'

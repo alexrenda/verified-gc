@@ -1,6 +1,7 @@
 Require Import Gc.Language Gc.Util.
 Require Import List ListSet Equality CpdtTactics.
 Require Import Coq.Program.Wf Coq.Logic.ProofIrrelevance FunInd Recdef.
+Hint Resolve ptr_eq_dec var_eq_dec.
 
 Inductive addresing_string : Type :=
 | TermStr : addresing_string
@@ -659,7 +660,7 @@ Proof.
       unfold incl in H1.
       specialize (H1 p' H).
       clear - H1.
-      specialize (in_split_exists_fst _ _ ptr_eq_dec H1).
+      specialize (in_split_exists_l _ _ ptr_eq_dec H1).
       intros.
       destruct H.
       clear - H.
@@ -707,9 +708,9 @@ Proof.
   unfold heap_get_struct in * ; fold heap_get_struct in *.
   edestruct ptr_eq_dec.
   + intros. subst.
-    apply in_split_l_hd.
+    eapply in_split_l_ht. apply ptr_eq_dec. right. reflexivity.
   + intuition.
-    eapply in_split_l_tl. auto.
+    eapply in_split_l_ht. apply ptr_eq_dec. left. auto.
 Qed.
 
 
@@ -760,19 +761,41 @@ Fixpoint sweep (h: heap_t) (ptrs: set ptr) : heap_t :=
   end
 .
 
-Definition gc (r: roots_t) (h: heap_t) : heap_t :=
+Definition gc' (r: roots_t) (h: heap_t) : heap_t :=
   sweep h (mark r h)
 .
 
-Lemma sweep_live :
-  forall h p ps,
-    In p ps ->
-    In p (fst (split (sweep h ps))) ->
-    In p (fst (split h)).
+Definition gc (s : state) : state :=
+  let roots := (roots s) in
+  let heap := (heap s) in
+  let output := (output s) in
+  mkState
+    roots
+    (gc' roots heap)
+    output
+  .
+
+Lemma heap_get_in_split :
+  forall h p l,
+    heap_get_struct p h = Some l ->
+    set_In p (fst (split h)).
 Proof.
-  induction h. crush.
-  intros.
-Admitted.
+  Hint Resolve ptr_eq_dec.
+  induction h ; intros.
+  * inversion H.
+  * destruct a.
+    inversion H. clear H.
+    destruct (ptr_eq_dec p0 p).
+  - injection H1. intros. subst. clear H1.
+    assert (In (p, l) ((p, l) :: h)). crush.
+    specialize (in_split_l _ _ H).
+    crush.
+  - unfold heap_maps_struct in * ; fold heap_maps_struct in *.
+    unfold heap_get_struct in * ; fold heap_get_struct in *.
+    specialize (IHh p l).
+    intuition.
+    eapply in_split_l_ht; auto.
+Qed.
 
 Lemma sweep_safe :
   forall h p v ps,

@@ -9,5 +9,6 @@ lib/cpdtlib/MoreSpecif.v
 src/Language.v
 src/Gc.v
 src/Safety.v
+src/Correctness.v
 src/Liveness.v
 src/Util.v
