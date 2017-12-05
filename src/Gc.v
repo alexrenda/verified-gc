@@ -1,4 +1,4 @@
-Require Import Gc.Language.
+Require Import Gc.Language Gc.Util.
 Require Import List ListSet Equality CpdtTactics.
 Require Import Coq.Program.Wf Coq.Logic.ProofIrrelevance FunInd Recdef.
 
@@ -137,20 +137,6 @@ Proof.
 Qed.
 
 
-Theorem set_add_noop :
-  forall l a,
-    set_In a l ->
-    set_add ptr_eq_dec a l = l.
-Proof.
-  induction l. crush.
-  intros.
-  unfold set_In in *. unfold In in *.
-  destruct H.
-  * subst. unfold set_add. destruct (ptr_eq_dec a0 a0) eqn:? ; crush.
-  * crush. edestruct ptr_eq_dec ; reflexivity.
-Qed.
-
-
 Definition add_vals (h: heap_t) (p: ptr) : set ptr :=
   nodup
     ptr_eq_dec
@@ -229,26 +215,6 @@ Proof.
   eapply NoDup_nodup.
 Qed.
 
-Lemma nodup_In_fwd :
-  forall p l,
-    In p (nodup ptr_eq_dec l) ->
-    In p l.
-Proof.
-  intros.
-  eapply nodup_In.
-  apply H.
-Qed.
-
-Lemma nodup_In_inv :
-  forall p l,
-    In p l ->
-    In p (nodup ptr_eq_dec l).
-Proof.
-  intros.
-  eapply nodup_In.
-  apply H.
-Qed.
-
 Theorem mark_ptr_single_monotonic_1 :
   forall h p ps,
     NoDup ps ->
@@ -274,7 +240,7 @@ Proof.
     eapply in_or_app.
     right.
     unfold mark_ptr_single in H0.
-    specialize (nodup_In_fwd _ _ H0).
+    specialize (nodup_In_fwd _ _ ptr_eq_dec H0).
     intros.
     intuition.
 Qed.
@@ -289,21 +255,6 @@ Proof.
   eapply mark_ptr_single_monotonic_1 ; auto.
 Qed.
 
-Lemma incl_cons_inv :
-  forall {A: Type} (a: A) b c,
-    incl (a::b) c ->
-    incl b c.
-Proof.
-  intros until c. generalize a c.
-  induction b ; induction c ; crush.
-  * unfold incl. intros. inversion H0.
-  * unfold incl in *.
-    intros.
-    specialize (H a2).
-    assert (In a2 (a1 :: a0 :: b)). crush. intuition.
-Qed.
-
-
 Lemma mark_ptr_single_subset_1 :
   forall h ps p,
     NoDup ps ->
@@ -315,7 +266,7 @@ Proof.
   intros. inversion H. subst. clear H.
   assert (incl ps (fst (split h))). eapply incl_cons_inv. apply H0.
   specialize (IHps p H5 H).
-  specialize (nodup_In_fwd _ _ H1).
+  specialize (nodup_In_fwd _ _ ptr_eq_dec H1).
   intros.
   unfold flat_map in * ; fold flat_map in *.
   destruct (in_app_or _ _ _ H2) ; clear H2.
@@ -328,7 +279,7 @@ Proof.
   * unfold mark_ptr_single in IHps.
     unfold flat_map in IHps.
     unfold set_In in *.
-    specialize (nodup_In_inv _ _ H3).
+    specialize (nodup_In_inv _ _ ptr_eq_dec H3).
     intros.
     clear H3.
     intuition.
@@ -374,22 +325,6 @@ Qed.
 
 Functional Scheme mark_ptr_single_funind := Induction for mark_ptr_single Sort Prop.
 
-Lemma in_flat_map_fwd : forall {A: Type} {B: Type} (f:A->set B)(l:list A)(y:B),
-    In y (flat_map f l) ->
-    exists x, In x l /\ In y (f x).
-Proof.
-  intros A B.
-  eapply in_flat_map.
-Qed.
-
-Lemma in_flat_map_inv : forall (f:ptr->set ptr)(l:list ptr)(y:ptr),
-    (exists x, In x l /\ In y (f x)) ->
-    In y (flat_map f l).
-
-Proof.
-  eapply in_flat_map.
-Qed.
-
 Lemma mark_ptr_single_equiv :
   forall h ps ps',
     NoDup ps ->
@@ -403,7 +338,7 @@ Proof.
   unfold incl.
   intros.
   unfold mark_ptr_single in *.
-  specialize (nodup_In_fwd _ _ H5) ; clear H5 ; intros.
+  specialize (nodup_In_fwd _ _ ptr_eq_dec H5) ; clear H5 ; intros.
   eapply nodup_In_inv.
   specialize (in_flat_map_fwd _ _ _ H5) ; clear H5 ; intros.
   destruct H5. destruct H5.
@@ -608,7 +543,7 @@ Proof.
     crush.
     eapply nodup_In_inv.
     unfold mark_ptr_single in IHps.
-    specialize (nodup_In_fwd _ _ IHps); clear IHps ; intros.
+    specialize (nodup_In_fwd _ _ ptr_eq_dec IHps); clear IHps ; intros.
     eapply in_or_app.
     right.
     auto.
@@ -686,14 +621,14 @@ Theorem mark_ptr_single_correct :
       heap_maps h p k (Pointer p').
 Proof.
   unfold mark_ptr_single. intros.
-  specialize (nodup_In_fwd _ _ H). clear H. intros.
+  specialize (nodup_In_fwd _ _ ptr_eq_dec H). clear H. intros.
   specialize (in_flat_map_fwd _ _ _ H). clear H. intros.
   destruct H. destruct H.
   exists x.
   unfold add_vals in H1.
   destruct (set_add_elim _ _ _ _ H1). subst. intuition.
   clear H1.
-  specialize (nodup_In_fwd _ _ H2). clear H2. intros.
+  specialize (nodup_In_fwd _ _ ptr_eq_dec H2). clear H2. intros.
   destruct (heap_get_struct x h) eqn:?. Focus 2. inversion H1.
   specialize (in_flat_map_fwd _ _ _ H1). clear H1. intros.
   destruct H1. destruct H1.
@@ -764,7 +699,7 @@ Proof.
         exists l. auto.
   * intuition.
     destruct H1 ; destruct H1 ; destruct H1.
-    destruct (In_dec ptr_eq_dec x ps). exists x.exists x0. crush.
+    destruct (In_dec ptr_eq_dec x ps). exists x. exists x0. crush.
     specialize (mark_ptr_single_correct ps h x H1 n).
     intros.
     destruct H3. destruct H3. destruct H3.
@@ -789,28 +724,6 @@ Fixpoint sweep (h: heap_t) (ptrs: set ptr) : heap_t :=
 Definition gc (r: roots_t) (h: heap_t) : heap_t :=
   sweep h (mark r h)
 .
-
-Lemma in_split_l_tl :
-  forall {A B: Type} (l: list (A * B)) (p o: A) (v: B),
-    In p (fst (split l)) ->
-    In p (fst (split ((o, v) :: l))).
-Proof.
-  induction l. crush.
-  crush.
-  specialize (IHl p o v).
-  destruct (split l). crush.
-Qed.
-
-Lemma in_split_r_tl :
-  forall {A B: Type} (l: list (A * B)) (p: B) (o: A) (v: B),
-    In p (snd (split l)) ->
-    In p (snd (split ((o, v) :: l))).
-Proof.
-  induction l. crush.
-  crush.
-  specialize (IHl p o v).
-  destruct (split l). crush.
-Qed.
 
 Lemma heap_get_in_split :
   forall h p l,
@@ -870,7 +783,7 @@ Proof.
                      (set_inter ptr_eq_dec (snd (split ((v, p) :: r))) (fst (split h))))
               (fst (split h))).
     unfold incl. intros.
-    specialize (nodup_In_fwd _ _ H1) ; clear H1 ; intros.
+    specialize (nodup_In_fwd _ _ ptr_eq_dec H1) ; clear H1 ; intros.
     eapply set_inter_elim2. apply H1.
 
     specialize (mark_ptrs_marks address (nodup ptr_eq_dec
