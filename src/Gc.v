@@ -699,6 +699,19 @@ Proof.
   destruct (split l). crush.
 Qed.
 
+Lemma in_split_exists_fst :
+  forall {A B: Type} (l: list (A * B)) (p: B) (eq_dec: forall n m : B, {n = m} + {n <> m}),
+    In p (snd (split l)) ->
+    exists v, In (v, p) l.
+Proof.
+  induction l; intros.
+  * intuition.
+  * destruct a.
+    destruct (eq_dec p b).
+    - exists a. crush.
+    - admit.
+Admitted.
+
 Lemma heap_get_in_split :
   forall h p l,
     heap_get_struct p h = Some l ->

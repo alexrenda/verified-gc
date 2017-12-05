@@ -52,35 +52,9 @@ Proof.
     unfold roots_maps.
     specialize (nodup_In_fwd _ _ H1). clear H1. intros.
     specialize (set_inter_elim1 _ _ _ _ H1). clear H1. intros.
-    destruct (ptr_eq_dec x p0). exists v. crush.
-    unfold set_In in *.
-    assert (In x (snd (split r))). admit.
-    clear - H2 H3.
-    induction r. crush.
-    crush. destruct a.
-
-    eapply in_split_r_tl.
-    eapply in_split_r_tl.
-    specializ
-
-    eapply H3.
-    clear H1 H2.
-
-                  Theorem mark_ptrs_correct :
-  forall ps h p' ND IL,
-
-
-  specialize (set_union_elim _ _ _ _ H). clear H.
-  intros.
-  destruct H.
-  * specialize (IHr h p vs).
-    crush.
-    exists x, x0, x1. crush.
-  * specialize (mark_ptr_correct h p0 p (length h)).
-    intros. intuition.
-    destruct H2.
-    exists x, v, p0.
-    crush.
+    apply in_split_exists_fst in H1.
+    - destruct H1. exists x1. crush.
+    - apply ptr_eq_dec.
 Qed.
 
 Lemma not_in_set_neq :
