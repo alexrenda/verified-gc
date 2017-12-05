@@ -1,6 +1,7 @@
 Require Import Gc.Language Gc.Util.
 Require Import List ListSet Equality CpdtTactics.
 Require Import Coq.Program.Wf Coq.Logic.ProofIrrelevance FunInd Recdef.
+Hint Resolve ptr_eq_dec var_eq_dec.
 
 Inductive addresing_string : Type :=
 | TermStr : addresing_string
@@ -798,7 +799,7 @@ Proof.
          eapply heap_get_in_split. apply Heqo.
   - intuition.
 
-    assert (forall x y : var * ptr, {x = y} + {x <> y}). decide equality. eapply var_eq_dec.
+    assert (forall x y : var * ptr, {x = y} + {x <> y}). decide equality.
     crush.
     + destruct (In_dec H2 (v,p) r).
       ** unfold mark.
