@@ -722,6 +722,51 @@ Proof.
     eapply in_split_l_tl. auto.
 Qed.
 
+
+Lemma heap_get_in :
+  forall p v h,
+    heap_get_struct p h = Some v ->
+    In p (fst (split h)).
+Proof.
+  induction h. crush.
+  destruct a.
+  unfold heap_get_struct in * ; fold heap_get_struct in *.
+  edestruct ptr_eq_dec.
+  + intros. subst.
+    apply in_split_l_hd.
+  + intuition.
+    eapply in_split_l_tl. auto.
+Qed.
+
+
+Theorem heap_marks :
+  forall address r h v p p',
+    roots_maps r v p ->
+    addresses h p address p' ->
+    set_In p' (mark r h)
+.
+Proof.
+  intros.
+  unfold roots_maps in *.
+  unfold mark.
+  eapply mark_ptrs_marks. apply H0.
+  eapply nodup_In_inv.
+  eapply set_inter_iff.
+  split.
+  * specialize (in_split_r _ _ H).
+    intros.
+    crush.
+  * inversion H0 ; subst.
+    - destruct H1.
+      eapply heap_get_in.
+      apply H1.
+    - unfold heap_maps in *.
+      unfold heap_get in *.
+      destruct (heap_get_struct p h) eqn:?. Focus 2. discriminate.
+      eapply heap_get_in.
+      apply Heqo.
+Qed.
+
 Theorem mark_monotonic_1 :
   forall r v p p' h,
     set_In p (mark r h) ->
