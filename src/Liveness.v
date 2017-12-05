@@ -1,4 +1,4 @@
-Require Import Gc.Language Gc.Gc.
+Require Import Gc.Language Gc.Gc Gc.Util.
 Require Import List ListSet CpdtTactics Equality Wf Nat Wf_nat.
 
 Lemma subset_property: forall st v p p0 roots,
@@ -50,7 +50,7 @@ Proof.
     destruct H2. destruct H1. destruct H1.
     exists x0. exists x.
     unfold roots_maps.
-    specialize (nodup_In_fwd _ _ H1). clear H1. intros.
+    specialize (nodup_In_fwd _ _ ptr_eq_dec H1). clear H1. intros.
     specialize (set_inter_elim1 _ _ _ _ H1). clear H1. intros.
     apply in_split_exists_fst in H1.
     - destruct H1. exists x1. crush.
