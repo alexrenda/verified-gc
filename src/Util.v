@@ -12,6 +12,18 @@ Proof.
   destruct (split l). crush.
 Qed.
 
+Lemma in_split_l_hd :
+  forall {A B: Type} (l: list (A * B)) (a: A) (b: B),
+    In a (fst (split ((a, b) :: l))).
+Proof.
+Admitted.
+
+Lemma in_split_r_hd :
+  forall {A B: Type} (l: list (A * B)) (a: A) (b: B),
+    In b (snd (split ((a, b) :: l))).
+Proof.
+Admitted.
+
 Lemma in_split_r_tl :
   forall {A B: Type} (l: list (A * B)) (p: B) (o: A) (v: B),
     In p (snd (split l)) ->
