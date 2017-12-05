@@ -157,6 +157,15 @@ Definition add_vals (h: heap_t) (p: ptr) : set ptr :=
     | None => nil
     end.
 
+(*
+
+
+Lemma app_nil_l_h :
+  forall {A: Type},
+
+: forall (A : Type) (l : list A), nil ++ l = l
+*)
+
 Theorem add_vals_subset :
   forall h p p',
     set_In p' (add_vals h p) ->
@@ -169,21 +178,11 @@ Proof.
   induction l. crush.
   unfold flat_map in H ; fold flat_map in H.
   destruct a.
-  remember (((fix flat_map (l : list val) : list ptr :=
-               match l with
-               | nil => nil
-               | x :: t =>
-                   match x with
-                   | Int _ => nil
-                   | Pointer p' =>
-                       match heap_get_struct p' h with
-                       | Some _ => p' :: nil
-                       | None => nil
-                       end
-                   end ++ flat_map t
-               end) l)) as foo.
-  specialize (app_nil_l foo).
-  intros. rewrite H0 in H. clear H0. rewrite Heqfoo in H. intuition.
+  repeat match goal with
+  | [ H: context [nil ++ ?l] |- _ ] =>
+    rewrite (app_nil_l) in H
+  end.
+  intuition.
   destruct (heap_get_struct p0 h) eqn:?.
   * unfold app in H.
     unfold nodup in H.
