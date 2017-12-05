@@ -697,9 +697,19 @@ Fixpoint sweep (h: heap_t) (ptrs: set ptr) : heap_t :=
   end
 .
 
-Definition gc (r: roots_t) (h: heap_t) : heap_t :=
+Definition gc' (r: roots_t) (h: heap_t) : heap_t :=
   sweep h (mark r h)
 .
+
+Definition gc (s : state) : state :=
+  let roots := (roots s) in
+  let heap := (heap s) in
+  let output := (output s) in
+  mkState
+    roots
+    (gc' roots heap)
+    output
+  .
 
 Lemma heap_get_in_split :
   forall h p l,

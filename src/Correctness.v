@@ -1,16 +1,17 @@
 Require Import Gc.Language Gc.Gc.
-(*
+
 Theorem no_extra_crashs :
   forall c s s' s'',
-  small_step c s = Some s' ->
-  small_step c (gc s) = Some s''.
+  small_step c s s' ->
+  small_step c (gc s) s''.
 Proof.
-  intros.
+(*  intros.
   destruct c ; unfold small_step in * ; crush.
   * unfold small_step in H.
-Qed.
+*)
+Admitted.
 
-
+(*
 Inductive execution : state -> list com -> output_t -> Prop :=
 | NilExecution : forall state,
     execution state List.nil (output state)
