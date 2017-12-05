@@ -374,10 +374,11 @@ Qed.
 
 Functional Scheme mark_ptr_single_funind := Induction for mark_ptr_single Sort Prop.
 
-Lemma in_flat_map_fwd : forall (f:ptr->set ptr)(l:list ptr)(y:ptr),
+Lemma in_flat_map_fwd : forall {A: Type} {B: Type} (f:A->set B)(l:list A)(y:B),
     In y (flat_map f l) ->
     exists x, In x l /\ In y (f x).
 Proof.
+  intros A B.
   eapply in_flat_map.
 Qed.
 
@@ -651,6 +652,83 @@ Proof.
       apply IHaddress.
 Qed.
 
+Lemma in_split_exists_fst :
+  forall {A B: Type} (l: list (A * B)) (p: B) (eq_dec: forall n m : B, {n = m} + {n <> m}),
+    In p (snd (split l)) ->
+    exists v, In (v, p) l.
+Proof.
+  induction l; intros.
+  * intuition.
+  * destruct a.
+    destruct (eq_dec p b).
+    - exists a. crush.
+    - admit.
+Admitted.
+
+Lemma in_split_exists_snd :
+  forall {A B: Type} (l: list (A * B)) (p: A),
+    In p (fst (split l)) ->
+    exists v, In (p, v) l.
+Proof.
+  induction l; intros.
+  * intuition.
+  * destruct a.
+    admit.
+Admitted.
+
+Theorem mark_ptr_single_correct :
+  forall ps h p',
+    set_In p' (mark_ptr_single h ps) ->
+    ~set_In p' ps ->
+    exists p k,
+      set_In p ps
+      /\
+      heap_maps h p k (Pointer p').
+Proof.
+  unfold mark_ptr_single. intros.
+  specialize (nodup_In_fwd _ _ H). clear H. intros.
+  specialize (in_flat_map_fwd _ _ _ H). clear H. intros.
+  destruct H. destruct H.
+  exists x.
+  unfold add_vals in H1.
+  destruct (set_add_elim _ _ _ _ H1). subst. intuition.
+  clear H1.
+  specialize (nodup_In_fwd _ _ H2). clear H2. intros.
+  destruct (heap_get_struct x h) eqn:?. Focus 2. inversion H1.
+  specialize (in_flat_map_fwd _ _ _ H1). clear H1. intros.
+  destruct H1. destruct H1.
+  destruct x0. crush.
+  destruct (heap_get_struct p h). crush.
+  * specialize (In_nth _ _ (Int 0) H1).
+    intros.
+    destruct H2. destruct H2.
+    exists x0.
+    split. auto.
+    unfold heap_maps.
+    clear - H3 Heqo.
+    induction h. crush.
+    destruct a.
+    destruct (ptr_eq_dec x p). crush.
+    destruct (ptr_eq_dec p p).
+    - injection Heqo. clear Heqo. intros. subst.
+      unfold heap_get ; fold heap_get.
+      unfold heap_get_struct ; fold heap_get_struct.
+      edestruct ptr_eq_dec.
+      + specialize (nth_default_eq x0 l (Int 0)).
+        intros.
+        unfold nth_default in H.
+        destruct (nth_error l x0). crush. crush.
+      + crush.
+    - crush.
+    - unfold heap_get_struct in Heqo ; fold heap_get_struct in Heqo.
+      edestruct ptr_eq_dec. crush.
+      crush.
+      unfold heap_get.
+      unfold heap_get_struct. fold heap_get_struct.
+      edestruct ptr_eq_dec ; crush.
+  * crush.
+Qed.
+
 Theorem mark_ptrs_correct :
   forall ps h p' ND IL,
     set_In p' (mark_ptrs h ps ND IL) ->
@@ -659,7 +737,42 @@ Theorem mark_ptrs_correct :
       /\
       addresses h p address p'.
 Proof.
-Admitted.
+  intros.
+  functional induction (mark_ptrs h ps ND IL); intros ; clear e.
+  * exists p'. exists TermStr.
+    split.
+    - eapply mark_ptr_single_saturates_inv ; eauto.
+    - constructor.
+      specialize (mark_ptr_single_subset_2 _ _ H0 H').
+      intros.
+      unfold incl in H1.
+      specialize (H1 p' H).
+      clear - H1.
+      specialize (in_split_exists_snd _ _ H1).
+      intros.
+      destruct H.
+      clear - H.
+      induction h. crush.
+      unfold heap_maps_struct in *.
+      unfold heap_get_struct ; fold heap_get_struct.
+      destruct a.
+      destruct H.
+      + injection H. clear H. intros. subst.
+        edestruct ptr_eq_dec ; crush.
+        exists x. auto.
+      + edestruct ptr_eq_dec ; crush.
+        exists l. auto.
+  * intuition.
+    destruct H1 ; destruct H1 ; destruct H1.
+    destruct (In_dec ptr_eq_dec x ps). exists x.exists x0. crush.
+    specialize (mark_ptr_single_correct ps h x H1 n).
+    intros.
+    destruct H3. destruct H3. destruct H3.
+    exists x1.
+    exists (FollowStr x2 x0).
+    split. auto.
+    eapply FollowAddresses ; eauto.
+Qed.
 
 
 Fixpoint sweep (h: heap_t) (ptrs: set ptr) : heap_t :=
@@ -698,19 +811,6 @@ Proof.
   specialize (IHl p o v).
   destruct (split l). crush.
 Qed.
-
-Lemma in_split_exists_fst :
-  forall {A B: Type} (l: list (A * B)) (p: B) (eq_dec: forall n m : B, {n = m} + {n <> m}),
-    In p (snd (split l)) ->
-    exists v, In (v, p) l.
-Proof.
-  induction l; intros.
-  * intuition.
-  * destruct a.
-    destruct (eq_dec p b).
-    - exists a. crush.
-    - admit.
-Admitted.
 
 Lemma heap_get_in_split :
   forall h p l,
