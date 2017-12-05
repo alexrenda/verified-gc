@@ -483,23 +483,6 @@ Proof.
     intuition.
 Qed.
 
-(*
-Theorem mark_ptrs_monotonic_2 :
-  forall h p p' ps H1 H2 H3 H4,
-    set_In p (mark_ptrs h ps H1 H2) ->
-    set_In p (mark_ptrs h (p'::ps) H3 H4).
-Proof.
-  intros.
-  functional induction (mark_ptrs h ps H1 H2); intros ; clear e.
-  * assert (incl ps (mark_ptr_single h ps)).
-    eapply mark_ptr_single_monotonic_2. auto.
-    unfold incl in H1.
-    specialize (H1 p).
-    intros.
-    intuition.
-Admitted.
- *)
-
 Lemma mark_ptr_single_marks_address :
   forall h ps address n p p' p'',
     heap_maps h p n (Pointer p') ->
@@ -686,17 +669,6 @@ Proof.
     eapply FollowAddresses ; eauto.
 Qed.
 
-Lemma heap_in_get :
-  forall h p,
-    set_In p (fst (split h)) ->
-    exists l,
-      heap_get_struct p h = Some l.
-Proof.
-  induction h. crush.
-  intros.
-  specialize (IHh p).
-Admitted.
-
 
 Lemma heap_get_in :
   forall p v h,
@@ -823,17 +795,6 @@ Proof.
       rewrite Heqs. auto.
     - auto.
 Qed.
-
-Lemma sweep_safe_split :
-  forall h p ps,
-    In p ps ->
-    In p (fst (split h)) ->
-    In p (fst (split (sweep h ps))).
-Proof.
-  induction h. crush.
-  intros.
-  specialize (IHh p ps H).
-Admitted.
 
 Lemma pointer_equivalence' :
   forall address r h p p',
