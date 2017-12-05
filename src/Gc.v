@@ -659,7 +659,7 @@ Proof.
       unfold incl in H1.
       specialize (H1 p' H).
       clear - H1.
-      specialize (in_split_exists_fst _ _ ptr_eq_dec H1).
+      specialize (in_split_exists_l _ _ ptr_eq_dec H1).
       intros.
       destruct H.
       clear - H.

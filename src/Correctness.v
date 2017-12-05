@@ -1,5 +1,5 @@
 Require Import Gc.Language Gc.Gc.
-
+(*
 Theorem no_extra_crashs :
   forall c s s' s'',
   small_step c s = Some s' ->
@@ -31,3 +31,4 @@ Theorem execution_output :
 .
 Proof.
 Admitted.
+*)

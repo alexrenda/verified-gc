@@ -12,6 +12,17 @@ Proof.
   destruct (split l). crush.
 Qed.
 
+Lemma in_split_r_tl :
+  forall {A B: Type} (l: list (A * B)) (p: B) (o: A) (v: B),
+    In p (snd (split l)) ->
+    In p (snd (split ((o, v) :: l))).
+Proof.
+  induction l. crush.
+  crush.
+  specialize (IHl p o v).
+  destruct (split l). crush.
+Qed.
+
 Lemma in_split_l_hd :
   forall {A B: Type} (l: list (A * B)) (a: A) (b: B),
     In a (fst (split ((a, b) :: l))).
@@ -24,18 +35,7 @@ Lemma in_split_r_hd :
 Proof.
 Admitted.
 
-Lemma in_split_r_tl :
-  forall {A B: Type} (l: list (A * B)) (p: B) (o: A) (v: B),
-    In p (snd (split l)) ->
-    In p (snd (split ((o, v) :: l))).
-Proof.
-  induction l. crush.
-  crush.
-  specialize (IHl p o v).
-  destruct (split l). crush.
-Qed.
-
-Lemma in_split_exists_fst :
+Lemma in_split_exists_l :
   forall {A B: Type} (l: list (A * B)) (p: A) (eq_dec: forall n m : A, {n = m} + {n <> m}),
     In p (fst (split l)) ->
     exists v, In (p, v) l.
@@ -57,7 +57,7 @@ Proof.
         crush.
 Qed.
 
-Lemma in_split_exists_snd :
+Lemma in_split_exists_r :
   forall {A B: Type} (l: list (A * B)) (p: B) (eq_dec: forall n m : B, {n = m} + {n <> m}),
     In p (snd (split l)) ->
     exists v, In (v, p) l.

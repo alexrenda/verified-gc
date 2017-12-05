@@ -52,7 +52,7 @@ Proof.
     unfold roots_maps.
     specialize (nodup_In_fwd _ _ ptr_eq_dec H1). clear H1. intros.
     specialize (set_inter_elim1 _ _ _ _ H1). clear H1. intros.
-    apply in_split_exists_fst in H1.
+    apply in_split_exists_r in H1.
     - destruct H1. exists x1. crush.
     - apply ptr_eq_dec.
 Qed.
