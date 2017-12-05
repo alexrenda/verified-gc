@@ -24,6 +24,28 @@ Proof.
 Qed.
 
 Lemma in_split_exists_fst :
+  forall {A B: Type} (l: list (A * B)) (p: A) (eq_dec: forall n m : A, {n = m} + {n <> m}),
+    In p (fst (split l)) ->
+    exists v, In (p, v) l.
+Proof.
+  induction l; intros.
+  * intuition.
+  * destruct a.
+    destruct (eq_dec p a).
+    - exists b. crush.
+    - assert (exists b : B, In (p, b) l).
+      + apply IHl. intuition.
+        destruct (split l) eqn:?.
+        unfold snd in *.
+        simpl in H.
+        rewrite Heqp0 in H.
+        crush.
+      + destruct H0.
+        exists x.
+        crush.
+Qed.
+
+Lemma in_split_exists_snd :
   forall {A B: Type} (l: list (A * B)) (p: B) (eq_dec: forall n m : B, {n = m} + {n <> m}),
     In p (snd (split l)) ->
     exists v, In (v, p) l.

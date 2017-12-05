@@ -587,30 +587,6 @@ Proof.
       apply IHaddress.
 Qed.
 
-Lemma in_split_exists_fst :
-  forall {A B: Type} (l: list (A * B)) (p: B) (eq_dec: forall n m : B, {n = m} + {n <> m}),
-    In p (snd (split l)) ->
-    exists v, In (v, p) l.
-Proof.
-  induction l; intros.
-  * intuition.
-  * destruct a.
-    destruct (eq_dec p b).
-    - exists a. crush.
-    - admit.
-Admitted.
-
-Lemma in_split_exists_snd :
-  forall {A B: Type} (l: list (A * B)) (p: A),
-    In p (fst (split l)) ->
-    exists v, In (p, v) l.
-Proof.
-  induction l; intros.
-  * intuition.
-  * destruct a.
-    admit.
-Admitted.
-
 Theorem mark_ptr_single_correct :
   forall ps h p',
     set_In p' (mark_ptr_single h ps) ->
@@ -683,7 +659,7 @@ Proof.
       unfold incl in H1.
       specialize (H1 p' H).
       clear - H1.
-      specialize (in_split_exists_snd _ _ H1).
+      specialize (in_split_exists_fst _ _ ptr_eq_dec H1).
       intros.
       destruct H.
       clear - H.
