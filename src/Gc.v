@@ -324,8 +324,6 @@ Proof.
   auto.
 Qed.
 
-Functional Scheme mark_ptr_single_funind := Induction for mark_ptr_single Sort Prop.
-
 Lemma mark_ptr_single_equiv :
   forall h ps ps',
     NoDup ps ->
@@ -389,6 +387,37 @@ Proof.
   assert (length ps < length h) ; crush.
 Defined.
 
+Lemma mark_ptr_single_saturates_2 :
+  forall h ps ND IL,
+    length (mark_ptrs h ps ND IL) = length (mark_ptr_single h (mark_ptrs h ps ND IL)).
+Proof.
+  intros.
+  functional induction (mark_ptrs h ps ND IL).
+  * assert (incl (mark_ptr_single h ps) ps).
+    eapply mark_ptr_single_saturates_inv ; eauto.
+
+    specialize (mark_ptr_single_saturates h ps H H' H0).
+    intros.
+
+
+    specialize (mark_ptr_single_saturates h ps H).
+    assert (incl (mark_ptr_single h ps) ps).
+    eapply NoDup_length_incl.
+    auto. crush. eapply mark_ptr_single_monotonic_2. auto.
+    intros.
+    intuition.
+
+    assert (length (mark_ptr_single h ps) <= length (mark_ptr_single h (mark_ptr_single h ps))).
+    eapply NoDup_incl_length ; eauto. eapply mark_ptr_single_nodup. auto.
+    eapply mark_ptr_single_monotonic_2. eapply mark_ptr_single_nodup. auto.
+
+    assert (length (mark_ptr_single h (mark_ptr_single h ps)) <= length (mark_ptr_single h ps)).
+    eapply NoDup_incl_length ; eauto. eapply mark_ptr_single_nodup ; eauto.
+    eapply mark_ptr_single_nodup. auto.
+    crush.
+  * crush.
+Qed.
+
 Program Definition mark (r: roots_t) (h: heap_t) : set ptr :=
   let root_ptrs := (snd (split r)) in
   let present_root_ptrs := set_inter ptr_eq_dec root_ptrs (fst (split h)) in
@@ -428,12 +457,11 @@ Proof.
       intros.
       intuition.
 
-      assert (length (mark_ptr_single h (mark_ptr_single h ps)) <= length (mark_ptr_single h ps)).
-      eapply NoDup_incl_length. eapply mark_ptr_single_nodup. auto. auto.
-
       assert (length (mark_ptr_single h ps) <= length (mark_ptr_single h (mark_ptr_single h ps))).
-      eapply NoDup_incl_length. auto.
-      eapply mark_ptr_single_monotonic_2. auto.
+      eapply NoDup_incl_length ; eauto. eapply mark_ptr_single_monotonic_2. auto.
+
+      assert (length (mark_ptr_single h (mark_ptr_single h ps)) <= length (mark_ptr_single h ps)).
+      eapply NoDup_incl_length ; eauto. eapply mark_ptr_single_nodup ; eauto.
       crush.
   * assert (H1 = (mark_ptr_single_nodup h ps H3)).
     eapply proof_irrelevance. rewrite <- H4. clear H4.
@@ -715,12 +743,24 @@ Proof.
 Qed.
 
 Lemma mark_extend :
-  forall r h n p p',
-    set_In p (mark r h) ->
+  forall r h n p p' address p'',
     heap_maps h p n (Pointer p') ->
+    set_In p (mark r h) ->
+    addresses h p' address p'' ->
     set_In p' (mark r h).
 Proof.
-Admitted.
+  intros.
+  assert (length (mark r h) = length (mark_ptr_single h (mark r h))).
+  * clear.
+    unfold mark.
+    eapply mark_ptr_single_saturates_2.
+  * unfold mark.
+    eapply mark_ptr_single_saturates_inv.
+    - eapply mark_ptrs_nodup. eapply NoDup_nodup.
+    - eapply mark_ptrs_subset.
+    - crush.
+    - eapply mark_ptr_single_marks_address ; eauto.
+Qed.
 
 Fixpoint sweep (h: heap_t) (ptrs: set ptr) : heap_t :=
   match h with
