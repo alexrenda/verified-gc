@@ -123,7 +123,7 @@ Lemma mark_sweep_liveness_1 :
   forall st p vs h,
     sweep (heap st) (mark (roots st) (heap st)) = h ->
     heap_maps_struct h p vs ->
-    exists address v p',
+    exists address p' v,
       roots_maps (roots st) v p'
       /\
       addresses (heap st) p' address p
@@ -153,7 +153,7 @@ Proof.
   apply (mark_sweep_liveness_1 st p vs h) in temp.
   * destruct temp as [a [v  [p' [H1 H2]]]].
     eapply pointer_equivalence in H2; eauto.
-    exists a, v, p'.
+    exists a, p', v.
     crush.
   * auto.
 Qed.
