@@ -20,7 +20,7 @@ Lemma mark_liveness_1 :
   forall r h p vs,
     set_In p (mark r h) ->
     heap_maps_struct h p vs ->
-    exists address v p',
+    exists address p' v,
       roots_maps r v p'
       /\
       addresses h p' address p
@@ -28,11 +28,48 @@ Lemma mark_liveness_1 :
 Proof.
   Hint Unfold heap_maps_struct heap_get_struct roots_maps.
   Hint Resolve subset_property.
+  Hint Constructors addresses.
   induction r. crush.
-  intros h p vs H.
+  intros.
+  specialize (IHr h p vs).
 
   unfold mark in H ; fold mark in H.
   destruct a.
+  destruct (ptr_eq_dec p p0).
+  * subst.
+    clear IHr.
+    exists TermStr.
+    exists p0. exists v.
+    split. crush.
+    eauto.
+  * specialize (mark_ptrs_correct
+                  (nodup ptr_eq_dec
+                         (set_inter ptr_eq_dec (snd (split ((v, p0) :: r))) (fst (split h)))) h p (Gc.mark_obligation_1 ((v, p0) :: r) h) (Gc.mark_obligation_2 ((v, p0) :: r) h)).
+    intros.
+    intuition.
+    destruct H2. destruct H1. destruct H1.
+    exists x0. exists x.
+    unfold roots_maps.
+    specialize (nodup_In_fwd _ _ H1). clear H1. intros.
+    specialize (set_inter_elim1 _ _ _ _ H1). clear H1. intros.
+    destruct (ptr_eq_dec x p0). exists v. crush.
+    unfold set_In in *.
+    assert (In x (snd (split r))). admit.
+    clear - H2 H3.
+    induction r. crush.
+    crush. destruct a.
+
+    eapply in_split_r_tl.
+    eapply in_split_r_tl.
+    specializ
+
+    eapply H3.
+    clear H1 H2.
+
+                  Theorem mark_ptrs_correct :
+  forall ps h p' ND IL,
+
+
   specialize (set_union_elim _ _ _ _ H). clear H.
   intros.
   destruct H.

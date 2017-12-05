@@ -1,6 +1,6 @@
 Require Import Gc.Language.
 Require Import List ListSet Equality CpdtTactics.
-Require Import Coq.Program.Wf.
+Require Import Coq.Program.Wf Coq.Logic.ProofIrrelevance FunInd Recdef.
 
 Inductive addresing_string : Type :=
 | TermStr : addresing_string
@@ -150,21 +150,6 @@ Proof.
   * crush. edestruct ptr_eq_dec ; reflexivity.
 Qed.
 
-Fixpoint mark_ptr (fuel:nat) (p: ptr) (h: heap_t) : set ptr :=
-  match fuel, heap_get_struct p h with
-  | S n, Some vs =>
-    (set_add ptr_eq_dec p
-             (union_pointers
-                (List.map
-                   (fun v =>
-                      match v with
-                      | Int _ => nil
-                      | Pointer p' => mark_ptr n p' h
-                      end
-                   ) vs)))
-  | _, _ => nil
-  end
-.
 
 Definition add_vals (h: heap_t) (p: ptr) : set ptr :=
   nodup
@@ -222,31 +207,46 @@ Proof.
   * crush.
 Qed.
 
-Fixpoint mark_ptr_single (h: heap_t) (ps: set ptr) : set ptr :=
-  match ps with
-  | nil => nil
-  | p::ps' =>
-    set_add
-      ptr_eq_dec
-      p
-      (set_union
-         ptr_eq_dec
-         (add_vals h p)
-         (mark_ptr_single h ps')
-      )
-  end.
+Definition mark_ptr_single (h: heap_t) (ps: set ptr) : set ptr :=
+  nodup
+    ptr_eq_dec
+    (
+      List.flat_map (
+          fun p =>
+            set_add
+              ptr_eq_dec
+              p
+              (add_vals h p)
+        ) ps
+    ).
 
 Theorem mark_ptr_single_nodup :
   forall h ps,
     NoDup ps ->
     NoDup (mark_ptr_single h ps).
 Proof.
-  induction ps. crush.
-  intros. inversion H. subst. intuition.
-  unfold mark_ptr_single. fold mark_ptr_single.
-  eapply set_add_nodup.
-  eapply set_union_nodup ; auto.
-  unfold add_vals. eapply NoDup_nodup.
+  intros.
+  eapply NoDup_nodup.
+Qed.
+
+Lemma nodup_In_fwd :
+  forall p l,
+    In p (nodup ptr_eq_dec l) ->
+    In p l.
+Proof.
+  intros.
+  eapply nodup_In.
+  apply H.
+Qed.
+
+Lemma nodup_In_inv :
+  forall p l,
+    In p l ->
+    In p (nodup ptr_eq_dec l).
+Proof.
+  intros.
+  eapply nodup_In.
+  apply H.
 Qed.
 
 Theorem mark_ptr_single_monotonic_1 :
@@ -262,10 +262,20 @@ Proof.
   specialize (IHps h p H4).
   destruct H0. subst.
   * unfold mark_ptr_single. fold mark_ptr_single.
+    eapply nodup_In.
+    unfold flat_map ; fold flat_map.
+    eapply in_or_app.
+    left.
     eapply set_add_intro2. reflexivity.
-  * unfold mark_ptr_single. fold mark_ptr_single.
-    eapply set_add_intro1.
-    eapply set_union_intro2.
+  * intuition.
+    unfold mark_ptr_single ; fold mark_ptr_single.
+    eapply nodup_In.
+    unfold flat_map ; fold flat_map.
+    eapply in_or_app.
+    right.
+    unfold mark_ptr_single in H0.
+    specialize (nodup_In_fwd _ _ H0).
+    intros.
     intuition.
 Qed.
 
@@ -305,11 +315,23 @@ Proof.
   intros. inversion H. subst. clear H.
   assert (incl ps (fst (split h))). eapply incl_cons_inv. apply H0.
   specialize (IHps p H5 H).
-  unfold mark_ptr_single in * ; fold mark_ptr_single in *.
-  destruct (set_add_elim _ _ _ _ H1) ; clear H1. crush. eapply incl_cons_inv ; crush.
-  destruct (set_union_elim _ _ _ _ H2) ; clear H2.
-  * eapply add_vals_subset. apply H1.
-  * crush.
+  specialize (nodup_In_fwd _ _ H1).
+  intros.
+  unfold flat_map in * ; fold flat_map in *.
+  destruct (in_app_or _ _ _ H2) ; clear H2.
+  * destruct (set_add_elim _ _ _ _ H3) ; clear H3.
+    - unfold incl in H0.
+      specialize H0 with a.
+      assert (In a (a :: ps)) ; crush.
+    - eapply add_vals_subset.
+      apply H2.
+  * unfold mark_ptr_single in IHps.
+    unfold flat_map in IHps.
+    unfold set_In in *.
+    specialize (nodup_In_inv _ _ H3).
+    intros.
+    clear H3.
+    intuition.
 Qed.
 
 Lemma mark_ptr_single_subset_2 :
@@ -335,25 +357,82 @@ Proof.
   eapply mark_ptr_single_subset_2. auto. auto.
 Qed.
 
-Program Fixpoint mark_ptr_full' (h: heap_t) (ps: set ptr) (H: NoDup ps) (H': incl ps (fst (split h)))
-        {measure (length h - length ps)} : set ptr :=
+Lemma mark_ptr_single_saturates_inv :
+  forall h ps,
+    NoDup ps ->
+    incl ps (fst (split h)) ->
+    length ps = length (mark_ptr_single h ps) ->
+    incl (mark_ptr_single h ps) ps.
+Proof.
+  intros.
+  eapply NoDup_length_incl.
+  auto.
+  crush.
+  eapply mark_ptr_single_monotonic_2.
+  auto.
+Qed.
+
+Functional Scheme mark_ptr_single_funind := Induction for mark_ptr_single Sort Prop.
+
+Lemma in_flat_map_fwd : forall (f:ptr->set ptr)(l:list ptr)(y:ptr),
+    In y (flat_map f l) ->
+    exists x, In x l /\ In y (f x).
+Proof.
+  eapply in_flat_map.
+Qed.
+
+Lemma in_flat_map_inv : forall (f:ptr->set ptr)(l:list ptr)(y:ptr),
+    (exists x, In x l /\ In y (f x)) ->
+    In y (flat_map f l).
+
+Proof.
+  eapply in_flat_map.
+Qed.
+
+Lemma mark_ptr_single_equiv :
+  forall h ps ps',
+    NoDup ps ->
+    incl ps (fst (split h)) ->
+    NoDup ps' ->
+    incl ps' (fst (split h)) ->
+    incl ps ps' ->
+    incl ps' ps ->
+    incl (mark_ptr_single h ps) (mark_ptr_single h ps').
+Proof.
+  unfold incl.
+  intros.
+  unfold mark_ptr_single in *.
+  specialize (nodup_In_fwd _ _ H5) ; clear H5 ; intros.
+  eapply nodup_In_inv.
+  specialize (in_flat_map_fwd _ _ _ H5) ; clear H5 ; intros.
+  destruct H5. destruct H5.
+  eapply in_flat_map_inv. exists x. crush.
+Qed.
+
+Lemma mark_ptr_single_saturates :
+  forall h ps,
+    NoDup ps ->
+    incl ps (fst (split h)) ->
+    incl (mark_ptr_single h ps) ps ->
+    incl (mark_ptr_single h (mark_ptr_single h ps)) (mark_ptr_single h ps).
+Proof.
+  intros.
+  eapply mark_ptr_single_equiv ; auto.
+  * eapply mark_ptr_single_nodup. auto.
+  * eapply mark_ptr_single_subset_2. auto. auto.
+  * eapply mark_ptr_single_monotonic_2. auto.
+Qed.
+
+Function mark_ptrs (h: heap_t) (ps: set ptr) (H: NoDup ps) (H': incl ps (fst (split h))) {measure (fun z => (length h - length z)) ps} : set ptr :=
   let new := mark_ptr_single h ps in
   if PeanoNat.Nat.eq_dec (length ps) (length new)
   then
     new
   else
-    mark_ptr_full' h new _ _
+    mark_ptrs h new (mark_ptr_single_nodup h ps H) (mark_ptr_single_subset_2 h ps H H')
 .
-Next Obligation.
-  clear H0.
-  eapply mark_ptr_single_nodup. auto.
-Defined.
-Next Obligation.
-  eapply mark_ptr_single_subset_2 ; auto.
-Defined.
-Next Obligation.
-  clear mark_ptr_full'.
-
+Proof.
+  intros.
   assert (length ps > 0).
   destruct ps ; crush.
 
@@ -373,10 +452,10 @@ Next Obligation.
   assert (length ps < length h) ; crush.
 Defined.
 
-Program Definition mark_ptr_full (r: roots_t) (h: heap_t) : set ptr :=
+Program Definition mark (r: roots_t) (h: heap_t) : set ptr :=
   let root_ptrs := (snd (split r)) in
   let present_root_ptrs := set_inter ptr_eq_dec root_ptrs (fst (split h)) in
-  mark_ptr_full' h (nodup ptr_eq_dec present_root_ptrs) _ _
+  mark_ptrs h (nodup ptr_eq_dec present_root_ptrs) _ _
 .
 Next Obligation.
   eapply NoDup_nodup.
@@ -388,235 +467,200 @@ Next Obligation.
   destruct (set_inter_elim _ _ _ _ H2) ; auto.
 Defined.
 
-Theorem mark_ptr_subset:
-  forall f e p h,
-    set_In e (mark_ptr f p h) ->
-    exists v, In (e, v) h.
+Theorem mark_ptrs_fixy :
+  forall h ps p H1 H2 H3 H4,
+    NoDup ps ->
+    set_In p (mark_ptrs h (mark_ptr_single h ps) H1 H2) ->
+    set_In p (mark_ptrs h ps H3 H4).
 Proof.
-  induction f ; crush.
-  destruct (heap_get_struct p h) eqn:?.
-  specialize (set_add_elim _ _ _ _ H). intros.
-  destruct H0.
-  * exists l. unfold heap_get_struct.
-    clear IHf H.
-    induction h. crush. intros. destruct a.
-    unfold heap_get_struct in Heqo.
-    destruct (ptr_eq_dec p0 p) eqn:? ; crush.
-  * clear H.
-    specialize (nth_union_pointers_inv _ _ H0). intros. destruct H. clear H0.
+  intros until 2.
+  functional induction (mark_ptrs h ps H3 H4); intros ; clear e.
+  * rewrite mark_ptrs_equation in H0.
+    edestruct PeanoNat.Nat.eq_dec.
+    - assert (incl (mark_ptr_single h (mark_ptr_single h ps)) (mark_ptr_single h ps)).
+      eapply mark_ptr_single_saturates_inv ; auto.
 
-    specialize (@map_nth
-                  val
-                  (list ptr)
-                  (fun v : val =>
-                     match v with
-                     | Int _ => nil
-                     | Pointer p' => mark_ptr f p' h
-                     end) l (Int 0) x).
-    unfold ptr. unfold set.
-    unfold ptr in H. unfold set in H.
-    intros. rewrite H0 in H. clear H0.
-    destruct (nth x l (Int 0)). crush.
-    eapply IHf. apply H.
-  * crush.
-Qed.
+      unfold incl in H4.
+      specialize H4 with p.
+      intuition.
+    - contradict n.
+      specialize (mark_ptr_single_saturates h ps H).
+      assert (incl (mark_ptr_single h ps) ps).
+      eapply NoDup_length_incl.
+      auto. crush. eapply mark_ptr_single_monotonic_2. auto.
+      intros.
+      intuition.
 
-Theorem mark_ptr_monotonic_1 :
-  forall f e p h,
-    set_In e (mark_ptr f p h) ->
-    set_In e (mark_ptr (S f) p h).
-Proof.
-  induction f. crush.
-  intros.
-  specialize (IHf e).
-  unfold mark_ptr in H.
-  fold mark_ptr in H.
-  unfold mark_ptr.
-  fold mark_ptr.
-  destruct (heap_get_struct p h). Focus 2. crush.
-  specialize (set_add_elim _ _ _ _ H). intros. destruct H0.
-  subst. eapply set_add_intro2. reflexivity.
-  eapply set_add_intro1.
+      assert (length (mark_ptr_single h (mark_ptr_single h ps)) <= length (mark_ptr_single h ps)).
+      eapply NoDup_incl_length. eapply mark_ptr_single_nodup. auto. auto.
 
-  specialize (nth_union_pointers_inv _ _ H0). intros. destruct H1. clear H0.
-  eapply (nth_union_pointers _ x).
-
-  specialize (@map_nth
-                val
-                (list ptr)
-                (fun v : val =>
-                   match v with
-                   | Int _ => nil
-                   | Pointer p' =>
-                     match heap_get_struct p' h with
-                     | Some vs =>
-                       set_add ptr_eq_dec p'
-                               (union_pointers
-                                  (map
-                                     (fun v0 : val =>
-                                        match v0 with
-                                        | Int _ => nil
-                                        | Pointer p'0 => mark_ptr f p'0 h
-                                        end) vs))
-                     | None => nil
-                     end
-                   end) l (Int 0) x).
-  unfold ptr. unfold set.
-  intros. rewrite H0. clear H0.
-
-  specialize (@map_nth
-                val
-                (list ptr)
-                (fun v : val =>
-                   match v with
-                   | Int _ => nil
-                   | Pointer p' => mark_ptr f p' h
-                   end) l (Int 0) x).
-  unfold ptr. unfold set.
-  unfold ptr in H1. unfold set in H1.
-  intros. rewrite H0 in H1. clear H0.
-  destruct (nth x l (Int 0)). crush.
-  specialize (IHf p0 h H1).
-  auto.
-Qed.
-
-Theorem mark_ptr_monotonic_2 :
-  forall f f' e p h,
-    set_In e (mark_ptr f p h) ->
-    f <= f' ->
-    set_In e (mark_ptr f' p h).
-Proof.
-  induction f'.
-  * intros.
-    inversion H0.
-    crush.
-  * intros.
-    specialize (IHf' e p h). intuition.
-    inversion H0.
-  - subst. auto.
-  - intuition.
-    eapply mark_ptr_monotonic_1.
+      assert (length (mark_ptr_single h ps) <= length (mark_ptr_single h (mark_ptr_single h ps))).
+      eapply NoDup_incl_length. auto.
+      eapply mark_ptr_single_monotonic_2. auto.
+      crush.
+  * assert (H1 = (mark_ptr_single_nodup h ps H3)).
+    eapply proof_irrelevance. rewrite <- H4. clear H4.
+    assert (H2 = (mark_ptr_single_subset_2 h ps H3 H')).
+    eapply proof_irrelevance. rewrite <- H4. clear H4.
     auto.
 Qed.
 
-Theorem mark_ptr_monotonic_3 :
-  forall f p h vs,
-    heap_maps_struct h p vs ->
-    set_In p (mark_ptr (S f) p h).
+Theorem mark_ptrs_nodup:
+  forall h ps H H',
+    NoDup ps ->
+    NoDup (mark_ptrs h ps H H').
 Proof.
   intros.
-  crush.
-  eapply set_add_intro2.
-  crush.
+  functional induction (mark_ptrs h ps H H'); intros ; clear e.
+  * eapply mark_ptr_single_nodup. auto.
+  * assert (NoDup (mark_ptr_single h ps)). eapply mark_ptr_single_nodup.
+    auto.
+    intuition.
 Qed.
 
-Theorem mark_ptr_saturates :
-  forall h e p,
-    set_In e (mark_ptr (S (length h)) p h) ->
-    set_In e (mark_ptr (length h) p h).
+Theorem mark_ptrs_subset :
+  forall h ps H H',
+    incl (mark_ptrs h ps H H') (fst (split h)).
 Proof.
-Admitted.
+  intros.
+  functional induction (mark_ptrs h ps H H'); intros ; clear e.
+  * eapply mark_ptr_single_subset_2. auto. auto.
+  * auto.
+Qed.
 
-Theorem mark_ptr_marks :
-  forall address h p p',
+Theorem mark_ptrs_monotonic :
+  forall h p ps H H',
+    set_In p ps ->
+    set_In p (mark_ptrs h ps H H').
+Proof.
+  intros.
+  functional induction (mark_ptrs h ps H H'); intros ; clear e.
+  * assert (incl ps (mark_ptr_single h ps)).
+    eapply mark_ptr_single_monotonic_2. auto.
+    unfold incl in H1.
+    specialize (H1 p).
+    intros.
+    intuition.
+  * assert (set_In p (mark_ptr_single h ps)).
+    eapply mark_ptr_single_monotonic_2 ; auto.
+    intuition.
+Qed.
+
+(*
+Theorem mark_ptrs_monotonic_2 :
+  forall h p p' ps H1 H2 H3 H4,
+    set_In p (mark_ptrs h ps H1 H2) ->
+    set_In p (mark_ptrs h (p'::ps) H3 H4).
+Proof.
+  intros.
+  functional induction (mark_ptrs h ps H1 H2); intros ; clear e.
+  * assert (incl ps (mark_ptr_single h ps)).
+    eapply mark_ptr_single_monotonic_2. auto.
+    unfold incl in H1.
+    specialize (H1 p).
+    intros.
+    intuition.
+Admitted.
+ *)
+
+Lemma mark_ptr_single_marks_address :
+  forall h ps address n p p' p'',
+    heap_maps h p n (Pointer p') ->
+    addresses h p' address p'' ->
+    set_In p ps ->
+    set_In p' (mark_ptr_single h ps).
+Proof.
+  induction ps. crush.
+  intros.
+  unfold set_In in *.
+  destruct H1.
+  * subst.
+    clear IHps.
+    unfold mark_ptr_single ; fold mark_ptr_single.
+    eapply nodup_In_inv.
+    eapply in_flat_map_inv.
+    exists p. crush.
+    eapply set_add_intro1.
+    unfold add_vals.
+    eapply nodup_In.
+    unfold heap_maps in H. unfold heap_get in H.
+    edestruct heap_get_struct eqn:?. Focus 2. discriminate.
+    assert (exists v, heap_get_struct p' h = Some v).
+    - inversion H0. auto.
+      unfold heap_maps in H1. unfold heap_get in H1.
+      destruct (heap_get_struct p' h) eqn:?. eexists. eauto. discriminate.
+    - clear H0.
+      destruct H1.
+      clear Heqo.
+      specialize (nth_error_In _ _ H).
+      intros.
+      clear H.
+      induction l. crush.
+      destruct H1.
+      + subst. clear IHl.
+        unfold flat_map ; fold flat_map.
+        rewrite H0.
+        eapply in_app_iff. left. crush.
+      + crush.
+  * unfold mark_ptr_single ; fold mark_ptr_single.
+    specialize (IHps address n p p' p'' H H0 H1).
+    crush.
+    eapply nodup_In_inv.
+    unfold mark_ptr_single in IHps.
+    specialize (nodup_In_fwd _ _ IHps); clear IHps ; intros.
+    eapply in_or_app.
+    right.
+    auto.
+Qed.
+
+Theorem mark_ptrs_marks :
+  forall address ps h p p' ND IL,
     addresses h p address p' ->
-    set_In p' (mark_ptr (List.length h) p h)
+    set_In p ps ->
+    set_In p' (mark_ptrs h ps ND IL)
 .
 Proof.
   induction address.
   * intros.
-    inversion H. clear H.
-    inversion H0. clear H0.
-    subst.
-    induction h.
-  - inversion H.
-  - assert (length (a :: h) = S (length h)) ; auto.
-    rewrite H0.
-    unfold mark_ptr.
-    rewrite H.
-    apply set_add_iff; crush.
-    * intros.
-      inversion H.
-      subst.
-      specialize (IHaddress h p'0 p' H6).
-      assert (set_In p' (mark_ptr (S (length h)) p h)).
-  - unfold mark_ptr ; fold mark_ptr.
-    specialize (heap_maps_implies_heap_get h p n (Pointer p'0) H4).
-    intros. destruct H0. destruct H0.
-    rewrite H0.
-    eapply set_add_intro1.
-    eapply (nth_union_pointers _ n).
+    inversion H ; subst ; clear H.
+    destruct H1.
+    assert (set_In p' (mark_ptr_single h ps)).
+    - specialize (mark_ptr_single_monotonic_2 h ps ND).
+      unfold incl.
+      intros.
+      specialize (H1 p' H0).
+      auto.
+    - eapply mark_ptrs_monotonic.
+      auto.
+  * intros.
+    inversion H ; subst ; clear H.
+    assert (set_In p'0 (mark_ptr_single h ps)).
+    - clear IHaddress.
+      eapply mark_ptr_single_marks_address. apply H5. apply H7. auto.
+    - specialize (IHaddress (mark_ptr_single h ps) h p'0 p').
 
-    specialize (@map_nth
-                  val
-                  (list ptr)
-                  (fun v : val =>
-                     match v return list ptr with
-                     | Int _ => nil
-                     | Pointer p'1 => mark_ptr (length h) p'1 h
-                     end) x (Int 0) n).
-    intros. rewrite H2 ; clear H2.
-    specialize (nth_default_eq n x (Int 0)). intros.
-    rewrite <- H2. intros. clear H2.
-    unfold nth_default. rewrite H1.
-    auto.
-  - eapply mark_ptr_saturates.
-    apply H0.
+      assert (NoDup (mark_ptr_single h ps)).
+      eapply mark_ptr_single_nodup. auto.
+
+      assert (incl (mark_ptr_single h ps) (fst (split h))).
+      eapply mark_ptr_single_subset_2 ; auto.
+
+      specialize (IHaddress H1 H2 H7 H).
+      eapply mark_ptrs_fixy.
+      auto.
+      apply IHaddress.
 Qed.
 
-Theorem mark_ptr_correct :
-  forall h p p' f,
-    set_In p' (mark_ptr f p h) ->
-    exists address, addresses h p address p'
-.
+Theorem mark_ptrs_correct :
+  forall ps h p' ND IL,
+    set_In p' (mark_ptrs h ps ND IL) ->
+    exists p address,
+      set_In p ps
+      /\
+      addresses h p address p'.
 Proof.
-  Hint Resolve set_union_emptyL.
-  Hint Constructors addresses addresing_string.
-  intros.
-  dependent induction f generalizing p.
-  - unfold mark_ptr in H.
-    intuition.
-  - unfold mark_ptr in H.
-    fold mark_ptr in H.
-    destruct (heap_get_struct p h) eqn:?; intuition.
-    assert (exists vs, heap_maps_struct h p vs); eauto.
-    remember (heap_maps_struct_indexable p h l).
-    assert (forall a, In a l -> exists k, heap_maps h p k a); intuition.
-    clear Heqo.
-    clear Heqe.
-    clear e.
-    apply set_add_iff in H.
-    destruct H.
-    * crush.
-      eauto.
-    * dependent induction l.
-    + crush.
-    + rewrite map_cons in H.
-      destruct a eqn:?.
-      -- crush.
-         apply set_union_emptyL in H.
-         eauto.
-      -- simpl in H.
-         apply set_union_iff in H.
-         destruct H.
-         ** specialize IHf with p0.
-            intuition.
-            edestruct H2.
-            assert (exists k, heap_maps h p k a).
-         ++ crush.
-         ++ edestruct H4.
-            exists (FollowStr x0 x).
-            eapply (FollowAddresses h p p0 p'); subst; eauto.
-            ** apply IHl; intuition.
-Qed.
+Admitted.
 
-Fixpoint mark (r: roots_t) (h: heap_t) : set ptr :=
-  match r with
-  | List.nil => List.nil
-  | List.cons (var, ptr) rest =>
-    set_union ptr_eq_dec (mark rest h) (mark_ptr (length h) ptr h)
-  end
-.
 
 Fixpoint sweep (h: heap_t) (ptrs: set ptr) : heap_t :=
   match h with
@@ -632,6 +676,60 @@ Fixpoint sweep (h: heap_t) (ptrs: set ptr) : heap_t :=
 Definition gc (r: roots_t) (h: heap_t) : heap_t :=
   sweep h (mark r h)
 .
+
+Lemma in_split_l_tl :
+  forall {A B: Type} (l: list (A * B)) (p o: A) (v: B),
+    In p (fst (split l)) ->
+    In p (fst (split ((o, v) :: l))).
+Proof.
+  induction l. crush.
+  crush.
+  specialize (IHl p o v).
+  destruct (split l). crush.
+Qed.
+
+Lemma in_split_r_tl :
+  forall {A B: Type} (l: list (A * B)) (p: B) (o: A) (v: B),
+    In p (snd (split l)) ->
+    In p (snd (split ((o, v) :: l))).
+Proof.
+  induction l. crush.
+  crush.
+  specialize (IHl p o v).
+  destruct (split l). crush.
+Qed.
+
+Lemma heap_get_in_split :
+  forall h p l,
+    heap_get_struct p h = Some l ->
+    set_In p (fst (split h)).
+Proof.
+  induction h ; intros.
+  * inversion H.
+  * destruct a.
+    inversion H. clear H.
+    destruct (ptr_eq_dec p0 p).
+  - injection H1. intros. subst. clear H1.
+    assert (In (p, l) ((p, l) :: h)). crush.
+    specialize (in_split_l _ _ H).
+    crush.
+  - unfold heap_maps_struct in * ; fold heap_maps_struct in *.
+    unfold heap_get_struct in * ; fold heap_get_struct in *.
+    specialize (IHh p l).
+    intuition.
+    eapply in_split_l_tl. auto.
+Qed.
+
+Theorem mark_monotonic_1 :
+  forall r v p p' h,
+    set_In p (mark r h) ->
+    set_In p (mark ((v, p')::r) h).
+Proof.
+  induction r. crush.
+  intros.
+  destruct a.
+  unfold mark.
+Admitted.
 
 Theorem heap_marks :
   forall address r h v p p',
@@ -652,16 +750,63 @@ Proof.
     destruct H1.
   - clear H. injection H1. clear H1. intros. subst.
     unfold mark. fold mark.
-    specialize (mark_ptr_marks address h p p' H0).
+    assert (NoDup (nodup ptr_eq_dec
+                         (set_inter ptr_eq_dec (snd (split ((v, p) :: r))) (fst (split h))))). eapply NoDup_nodup.
+    assert (incl
+              (nodup ptr_eq_dec
+                     (set_inter ptr_eq_dec (snd (split ((v, p) :: r))) (fst (split h))))
+              (fst (split h))).
+    unfold incl. intros.
+    specialize (nodup_In_fwd _ _ H1) ; clear H1 ; intros.
+    eapply set_inter_elim2. apply H1.
+
+    specialize (mark_ptrs_marks address (nodup ptr_eq_dec
+          (set_inter ptr_eq_dec (snd (split ((v, p) :: r))) (fst (split h)))) h p p' H H1 H0).
     intros.
-    eapply set_union_intro2. auto.
+    assert ((mark_obligation_1 ((v, p) :: r) h) = H).
+    eapply proof_irrelevance. rewrite H3. clear H3.
+    assert ((mark_obligation_2 ((v, p) :: r) h) = H1).
+    eapply proof_irrelevance. rewrite H3. clear H3.
+    eapply H2. clear H2.
+    eapply nodup_In_inv.
+    eapply set_inter_intro.
+    + assert (In (v, p) ((v, p) :: r)). crush.
+      specialize (in_split_r _ _ H2).
+      crush.
+    + inversion H0.
+      ** subst.
+         destruct H2.
+         unfold heap_maps_struct in H2.
+         eapply heap_get_in_split. apply H2.
+      ** subst.
+         unfold heap_maps in H2.
+         unfold heap_get in H2.
+         destruct (heap_get_struct p h) eqn:?. Focus 2. crush.
+         eapply heap_get_in_split. apply Heqo.
   - intuition.
+
+    assert (forall x y : var * ptr, {x = y} + {x <> y}). decide equality. eapply ptr_eq_dec. eapply var_eq_dec.
     crush.
-    + apply set_union_iff.
+    + destruct (In_dec H2 (v,p) r).
+      ** unfold mark.
+         admit.
+      ** admit.
+    + admit.
+      (*apply set_union_iff.
       crush.
     + apply set_union_iff.
-      crush.
-Qed.
+      crush.*)
+Admitted.
+
+(*
+Theorem mark_ptrs_marks :
+  forall address ps h p p' ND IL,
+    addresses h p address p' ->
+    set_In p ps ->
+    set_In p' (mark_ptrs h ps ND IL)
+.
+*)
+
 
 Lemma address_extend :
   forall address h p p' p'' n v,
@@ -691,6 +836,9 @@ Lemma pointer_equivalence' :
     addresses h p address p' ->
     set_In p (mark r h) ->
     addresses (sweep h (mark r h)) p address p'.
+Proof.
+Admitted.
+(*
 Proof.
   induction address.
   * crush. inversion H. clear H. destruct H1.
@@ -853,6 +1001,7 @@ Proof.
       -- crush.
     + crush.
 Qed.
+*)
 
 Lemma pointer_equivalence :
   forall address r h v p p',
