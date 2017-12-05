@@ -27,13 +27,21 @@ Lemma in_split_l_hd :
   forall {A B: Type} (l: list (A * B)) (a: A) (b: B),
     In a (fst (split ((a, b) :: l))).
 Proof.
-Admitted.
+  intros.
+  simpl.
+  destruct (split l). 
+  crush.
+Qed.
 
 Lemma in_split_r_hd :
   forall {A B: Type} (l: list (A * B)) (a: A) (b: B),
     In b (snd (split ((a, b) :: l))).
 Proof.
-Admitted.
+  intros.
+  simpl.
+  destruct (split l). 
+  crush.
+Qed.
 
 Lemma in_split_exists_l :
   forall {A B: Type} (l: list (A * B)) (p: A) (eq_dec: forall n m : A, {n = m} + {n <> m}),
