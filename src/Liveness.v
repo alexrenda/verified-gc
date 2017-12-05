@@ -42,12 +42,10 @@ Proof.
     exists p0. exists v.
     split. crush.
     eauto.
-  * specialize (mark_ptrs_correct
-                  (nodup ptr_eq_dec
-                         (set_inter ptr_eq_dec (snd (split ((v, p0) :: r))) (fst (split h)))) h p (Gc.mark_obligation_1 ((v, p0) :: r) h) (Gc.mark_obligation_2 ((v, p0) :: r) h)).
+  * specialize (mark_ptrs_correct _ h p  _ _ H).
     intros.
     intuition.
-    destruct H2. destruct H1. destruct H1.
+    destruct H1. destruct H1. destruct H1.
     exists x0. exists x.
     unfold roots_maps.
     specialize (nodup_In_fwd _ _ ptr_eq_dec H1). clear H1. intros.
