@@ -908,5 +908,6 @@ Lemma value_equivalence :
     vs = vs'
 .
 Proof.
-
+  intros.
+  
 Admitted.

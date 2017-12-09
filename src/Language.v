@@ -239,7 +239,7 @@ Definition heap_maps_struct (h: heap_t) (p: ptr) (vs: list val) : Prop :=
 
 (* Must be proven for liveness *)
 Theorem heap_maps_struct_indexable : forall p h vs,
-  heap_get_struct p h = Some vs ->
+  heap_maps_struct h p vs ->
   forall a, List.In a vs ->
   exists k, heap_maps h p k a
 .
@@ -326,7 +326,7 @@ Definition update_heap (r: roots_t) (h: heap_t) (lhv: var) (lhidx: nat) (rhv: va
   end.
 
 Notation "x <-- A ; B" := (match A with | Some x => B | None => None end)
-                            (right associativity, only parsing, at level 84).
+                            (right associativity, at level 84).
 
 Definition handle_small_step (s: state) (c: com) : option state :=
   let r := roots s in
