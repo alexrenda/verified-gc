@@ -326,7 +326,7 @@ Definition update_heap (r: roots_t) (h: heap_t) (lhv: var) (lhidx: nat) (rhv: va
   end.
 
 Notation "x <-- A ; B" := (match A with | Some x => B | None => None end)
-                            (right associativity, at level 84).
+                            (right associativity, only parsing, at level 84).
 
 Definition handle_small_step (s: state) (c: com) : option state :=
   let r := roots s in
