@@ -8,6 +8,11 @@ Definition ptr_eq_dec := eq_nat_dec.
 Definition var := string.
 Definition var_eq_dec := string_dec.
 
+Definition var_ptr_eq_dec : forall (l r: var * ptr), {l = r} + {l <> r}.
+  Hint Resolve ptr_eq_dec var_eq_dec.
+  decide equality.
+Qed.
+
 (** Types of values we can have in the heap *)
 Inductive val : Type :=
 | Int : nat -> val
@@ -38,10 +43,15 @@ match r with
 | List.nil => None
 | (hv, hp)::t => if var_eq_dec hv v then Some hp else (roots_get v t)
 end.
+Definition roots_set (r: roots_t) (v: var) (p:ptr) : roots_t := (v,p)::r.
+Definition roots_unset (r: roots_t) (v: var) : roots_t :=
+  match roots_get v r with
+  | Some p => List.remove var_ptr_eq_dec (v,p) r
+  | None => r
+  end.
 
 Definition roots_maps (r: roots_t) (v: var) (p: ptr) : Prop :=
   List.In (v,p) r.
-
 
 Definition output_t := list nat.
 
@@ -271,15 +281,6 @@ Record state := mkState {
                     output: output_t;
                   }.
 
-Inductive eval_valexp : valexp -> state -> val -> Prop :=
-| IntExpEval : forall n s,
-    eval_valexp (IntExp n) s (Int n)
-| DerefEval : forall rv hv p k r h t,
-    roots_maps r rv p ->
-    heap_maps h p k hv ->
-    eval_valexp (Deref rv k) (mkState r h t) hv
-.
-
 (** fresh heap pointer is 1 more than the maximum heap ptr *)
 Definition fresh_heap_ptr (h: heap_t) : ptr :=
   let max := fun (p1 p2:ptr) => if le_gt_dec p1 p2 then p2 else p1 in
@@ -291,69 +292,66 @@ Definition fresh_heap_ptr (h: heap_t) : ptr :=
   in
   (max_heap h) + 1.
 
-(** Remove var from roots, works even if var is not in it *)
-Fixpoint remove_var (v:var) (r:roots_t) : roots_t :=
-  match r with
-  | List.nil => List.nil
-  | (v',p')::t => if var_eq_dec v v' then remove_var v t else (v',p')::(remove_var v t)
+
+Definition eval_valexp (r: roots_t) (h: heap_t) (v: valexp) : option val :=
+  match v with
+  | IntExp i => Some (Int i)
+  | Deref var idx =>
+    match roots_get var r with
+    | Some p => heap_get p idx h
+    | None => None
+    end
   end.
 
-(** Set variable to a pointer *)
-Definition set_var (v:var) (p:ptr) (r:roots_t) : roots_t :=
-  let without_var := remove_var v r in
-  (v, p)::without_var.
+Definition update_heap (r: roots_t) (h: heap_t) (lhv: var) (lhidx: nat) (rhv: val) : option heap_t :=
+  match roots_get lhv r with
+  | None => None
+  | Some lhp =>
+    match heap_set_k h lhp lhidx rhv with
+    | Some h' => Some h'
+    | None => None
+    end
+  end.
 
-Inductive small_step : com -> state -> state -> Prop :=
-| NewStep : forall var vexps vals p state,
-    List.Forall2 (fun vexp val => eval_valexp vexp state val) vexps vals ->
-    p = fresh_heap_ptr (heap state) ->
-    small_step
-      (New var vexps)
-      state
-      (mkState
-         (set_var var p (roots state))
-         ((p, vals) :: (heap state))
-         (output state)
-      )
-| AssignVarStep : forall var vexp p state,
-    eval_valexp vexp state (Pointer p) ->
-    small_step
-      (AssignVar var vexp)
-      state
-      (mkState
-         (set_var var p (roots state))
-         (heap state)
-         (output state)
-      )
-| AssignMemStep : forall var ptr k vexp val state h',
-    roots_maps (roots state) var ptr ->
-    eval_valexp vexp state val ->
-    heap_set_k (heap state) ptr k val = Some h' ->
-    small_step
-      (AssignMem var k vexp)
-      state
-      (mkState
-         (roots state)
-         (h')
-         (output state)
-      )
-| DropStep : forall var state,
-    small_step
-      (Drop var)
-      state
-      (mkState
-         (remove_var var (roots state))
-         (heap state)
-         (output state)
-      )
-| OutStep : forall vexp n state,
-    eval_valexp vexp state (Int n) ->
-    small_step
-      (Out vexp)
-      state
-      (mkState
-         (roots state)
-         (heap state)
-         (List.cons n (output state))
-      )
-.
+Notation "x <-- A ; B" := (match A with | Some x => B | None => None end)
+                            (right associativity, at level 84).
+
+Definition handle_small_step (s: state) (c: com) : option state :=
+  let r := roots s in
+  let h := heap s in
+  let o := output s in
+  match c with
+  | New var vals =>
+    let p := fresh_heap_ptr h in
+    let r' := roots_set r var p in
+    match (List.fold_right (fun vexp acc =>
+                              match acc, eval_valexp r h vexp with
+                              | Some vs, Some v => Some (v::vs)
+                              | _, _ => None
+                              end) (Some List.nil) vals) with
+    | Some vals =>
+      let h' := (p, vals)::h in
+      Some (mkState r' h' o)
+    | None =>
+      None
+    end
+  | AssignMem lhvar lhidx rhv =>
+    rhv <-- eval_valexp r h rhv ;
+      h' <-- update_heap r h lhvar lhidx rhv ;
+      Some (mkState r h' o)
+  | AssignVar var val =>
+    match eval_valexp r h val with
+    | Some (Pointer p) =>
+      let r' := roots_set r var p in
+      Some (mkState r' h o)
+    | _ => None
+    end
+  | Drop var =>
+    let r' := roots_unset r var in
+    Some (mkState r' h o)
+  | Out val =>
+    match eval_valexp r h val with
+    | Some (Int i) => Some (mkState r h (i::o))
+    | _ => None
+    end
+  end.
