@@ -24,6 +24,17 @@ Inductive addresses : heap_t -> ptr -> addresing_string -> ptr -> Prop :=
     addresses h p (FollowStr k rest) p''
 .
 
+Lemma address_maps_to_value :
+  forall h p p' address,
+  addresses h p address p' ->
+  exists vs, heap_maps_struct h p' vs
+.
+Proof.
+  intros.
+  dependent induction address generalizing p; inversion H; eauto.
+Qed.
+
+
 Fixpoint union_pointers (l : list (set ptr)) : set ptr :=
   match l with
   | nil => (empty_set ptr)
@@ -873,7 +884,7 @@ Lemma pointer_equivalence :
   forall address r h v p p',
     roots_maps r v p ->
     addresses h p address p' ->
-    addresses (sweep h (mark r h)) p address p'.
+    addresses (mark_sweep r h) p address p'.
 Proof.
   intros.
   eapply pointer_equivalence'.
@@ -888,3 +899,14 @@ Proof.
   - exists l. crush.
   - crush.
 Qed.
+
+Lemma value_equivalence :
+  forall r h h' p vs vs',
+    (mark_sweep r h) = h' ->
+    heap_maps_struct h p vs ->
+    heap_maps_struct h' p vs' ->
+    vs = vs'
+.
+Proof.
+
+Admitted.

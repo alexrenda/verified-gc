@@ -1,6 +1,7 @@
 Require Import Gc.Language Gc.Gc.
 Require Import Equality CpdtTactics.
 
+(*
 Theorem no_extra_crashs :
   forall c s s',
   small_step c s s' ->
@@ -33,3 +34,4 @@ Theorem execution_output :
 .
 Proof.
 Admitted.
+*)

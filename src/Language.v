@@ -252,6 +252,18 @@ Proof.
   destruct p; crush.
 Qed.
 
+Theorem heap_get_implies_heap_maps : forall p h vs k v,
+  heap_get_struct p h = Some vs ->
+  nth_error vs k = Some v ->
+  heap_maps h p k v
+.
+Proof.
+  intros.
+  unfold heap_maps.
+  unfold heap_get.
+  crush.
+Qed.
+
 Lemma heap_maps_implies_heap_get :
   forall h p n v,
   heap_maps h p n v ->
