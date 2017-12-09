@@ -138,7 +138,7 @@ Qed.
 
 Theorem liveness_1 :
   forall st p vs h,
-    (gc' (roots st) (heap st)) = h ->
+    (mark_sweep (roots st) (heap st)) = h ->
     heap_maps_struct h p vs ->
     exists address v p',
       roots_maps (roots st) v p'

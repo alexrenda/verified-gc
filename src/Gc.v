@@ -772,17 +772,22 @@ Fixpoint sweep (h: heap_t) (ptrs: set ptr) : heap_t :=
   end
 .
 
-Definition gc' (r: roots_t) (h: heap_t) : heap_t :=
+Definition mark_sweep (r: roots_t) (h: heap_t) : heap_t :=
   sweep h (mark r h)
+.
+
+Definition collect (r: roots_t) (h: heap_t) : (roots_t * heap_t) :=
+  (r, h)
 .
 
 Definition gc (s : state) : state :=
   let roots := (roots s) in
   let heap := (heap s) in
   let output := (output s) in
+  let (roots', heap') := collect roots (mark_sweep roots heap) in
   mkState
-    roots
-    (gc' roots heap)
+    roots'
+    heap'
     output
   .
 
