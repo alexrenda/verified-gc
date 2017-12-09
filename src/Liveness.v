@@ -136,6 +136,22 @@ Proof.
   * intuition.
 Qed.
 
+
+Theorem gc_liveness :
+  forall st st' p vs h,
+    gc st = st' ->
+    (heap st') = h ->
+    heap_maps_struct h p vs ->
+    exists address v p',
+      roots_maps (roots st') v p'
+      /\
+      addresses h p' address p
+.
+Proof.
+Admitted.
+
+
+
 Theorem liveness_1 :
   forall st p vs h,
     (mark_sweep (roots st) (heap st)) = h ->
