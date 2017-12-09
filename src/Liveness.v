@@ -136,23 +136,7 @@ Proof.
   * intuition.
 Qed.
 
-
-Theorem gc_liveness :
-  forall st st' p vs h,
-    gc st = st' ->
-    (heap st') = h ->
-    heap_maps_struct h p vs ->
-    exists address v p',
-      roots_maps (roots st') v p'
-      /\
-      addresses h p' address p
-.
-Proof.
-Admitted.
-
-
-
-Theorem liveness_1 :
+Theorem mark_sweep_liveness_2 :
   forall st p vs h,
     (mark_sweep (roots st) (heap st)) = h ->
     heap_maps_struct h p vs ->
@@ -170,4 +154,27 @@ Proof.
     exists a, p', v.
     crush.
   * auto.
+Qed.
+
+
+Theorem gc_liveness :
+  forall st st' p vs h,
+    gc st = st' ->
+    (heap st') = h ->
+    heap_maps_struct h p vs ->
+    exists address v p',
+      roots_maps (roots st') v p'
+      /\
+      addresses h p' address p
+.
+Proof.
+  Hint Unfold gc collect.
+  Hint Resolve mark_sweep_liveness_2.
+  intros.
+  subst.
+  unfold gc in *.
+  unfold collect in *.
+  unfold roots in *.
+  unfold heap in *.
+  eapply mark_sweep_liveness_2; eauto.
 Qed.

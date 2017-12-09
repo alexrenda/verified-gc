@@ -776,6 +776,7 @@ Definition mark_sweep (r: roots_t) (h: heap_t) : heap_t :=
   sweep h (mark r h)
 .
 
+(* NOP collect for now *)
 Definition collect (r: roots_t) (h: heap_t) : (roots_t * heap_t) :=
   (r, h)
 .
