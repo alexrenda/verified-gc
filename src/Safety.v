@@ -45,19 +45,15 @@ Proof.
   destructo.
   split. crush.
   clear H H0.
-  split.
-  * unfold equiv'.
-    intros.
-    specialize (H3 v p1 address p1' k i).
+  split ; unfold equiv' ; intros.
+  * specialize (H3 v p1 address p1' k i).
     intuition.
     destructo.
     eapply H1.
     apply H3.
     apply H6.
     apply H7.
-  * unfold equiv'.
-    intros.
-    specialize (H2 v p1 address p1' k i).
+  * specialize (H2 v p1 address p1' k i).
     intuition.
     destructo.
     eapply H4.
@@ -68,8 +64,7 @@ Qed.
 
 (* All integers reachable from the same variable, address, and index. *)
 Theorem gc_safety :
-  forall st st',
-    equiv st st'
+  forall st, equiv st (gc st)
 .
 Proof.
 Admitted.
