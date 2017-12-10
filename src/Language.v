@@ -1,3 +1,4 @@
+Require Import Gc.Util.
 Require Import Bool Arith String List ListSet Vector CpdtTactics.
 
 (** model pointers as nats *)
@@ -285,6 +286,35 @@ Proof.
       destruct (ptr_eq_dec p p); crush.
     - crush.
       destruct (ptr_eq_dec p0 p); crush.
+Qed.
+
+Lemma heap_maps_struct_cons :
+  forall h p p1 l vs,
+    heap_maps_struct ((p1, l) :: h) p vs ->
+    p <> p1 ->
+    heap_maps_struct h p vs
+.
+Proof.
+  intros.
+  unfold heap_maps_struct in H.
+  unfold heap_get_struct in H.
+  fold heap_get_struct in H.
+  destruct (ptr_eq_dec p1 p); crush.
+Qed.
+
+Lemma heap_get_in :
+  forall p v h,
+    heap_get_struct p h = Some v ->
+    List.In p (fst (split h)).
+Proof.
+  induction h. crush.
+  destruct a.
+  unfold heap_get_struct in * ; fold heap_get_struct in *.
+  edestruct ptr_eq_dec.
+  + intros. subst.
+    eapply in_split_l_ht. apply ptr_eq_dec. right. reflexivity.
+  + intuition.
+    eapply in_split_l_ht. apply ptr_eq_dec. left. auto.
 Qed.
 
 Record state := mkState {

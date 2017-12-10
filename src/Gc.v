@@ -34,7 +34,6 @@ Proof.
   dependent induction address generalizing p; inversion H; eauto.
 Qed.
 
-
 Fixpoint union_pointers (l : list (set ptr)) : set ptr :=
   match l with
   | nil => (empty_set ptr)
@@ -52,39 +51,6 @@ Proof.
   eapply set_union_nodup ;
     inversion H ;
     eauto.
-Qed.
-
-Theorem set_union_nodup_inv_1 :
-  forall l l',
-    NoDup (set_union ptr_eq_dec l l') ->
-    NoDup l.
-Proof.
-  intros l l'. revert l.
-  induction l'.
-  * intros.
-    induction l; crush.
-  * intros.
-    unfold set_union in * ; fold set_union in *.
-    specialize (IHl' l).
-    induction (((fix set_union (x y : set nat) {struct y} : set nat :=
-               match y with
-               | nil => x
-               | a1 :: y1 => set_add ptr_eq_dec a1 (set_union x y1)
-               end) l l')).
-  - eapply IHl'. constructor.
-  - crush.
-    destruct (ptr_eq_dec a a0).
-    + eauto.
-    + inversion H. subst.
-      assert (NoDup s -> NoDup l).
-      ** intros.
-         assert (~ In a0 s).
-         unfold not. intros.
-         assert (In a0 (set_add ptr_eq_dec a s)). eapply set_add_intro1; auto.
-         crush.
-         assert (NoDup (a0 :: s)). constructor ; auto.
-         intuition.
-      ** eauto.
 Qed.
 
 Theorem nth_union_pointers:
@@ -120,32 +86,6 @@ Proof.
     destruct IHl.
     exists (S x).
     crush.
-Qed.
-
-Lemma heap_get_to_maps :
-  forall h p v,
-    heap_get_struct p h = Some v ->
-    In (p,v) h.
-Proof.
-  induction h. crush.
-  intros.
-  unfold heap_get_struct in H.
-  destruct a.
-  edestruct ptr_eq_dec eqn:?. constructor. injection H. intros. subst. reflexivity.
-  crush.
-Qed.
-
-Lemma heap_get_to_maps_2 :
-  forall h p v,
-    heap_get_struct p h = Some v ->
-    In p (fst (split h)).
-Proof.
-  intros.
-  specialize (heap_get_to_maps _ _ _ H).
-  intros.
-  unfold set_In in *. unfold ptr in *.
-  assert (p = fst (p,v)). crush. rewrite H1. clear H1.
-  eapply in_split_l. auto.
 Qed.
 
 
@@ -200,7 +140,7 @@ Proof.
     destruct (in_dec ptr_eq_dec p0).
     - intuition.
     - crush.
-      eapply heap_get_to_maps_2. apply Heqo.
+      eapply heap_get_in. apply Heqo.
   * crush.
 Qed.
 
@@ -707,23 +647,6 @@ Proof.
     eapply FollowAddresses ; eauto.
 Qed.
 
-
-Lemma heap_get_in :
-  forall p v h,
-    heap_get_struct p h = Some v ->
-    In p (fst (split h)).
-Proof.
-  induction h. crush.
-  destruct a.
-  unfold heap_get_struct in * ; fold heap_get_struct in *.
-  edestruct ptr_eq_dec.
-  + intros. subst.
-    eapply in_split_l_ht. apply ptr_eq_dec. right. reflexivity.
-  + intuition.
-    eapply in_split_l_ht. apply ptr_eq_dec. left. auto.
-Qed.
-
-
 Theorem heap_marks :
   forall address r h v p p',
     roots_maps r v p ->
@@ -803,28 +726,6 @@ Definition gc (s : state) : state :=
     output
   .
 
-Lemma heap_get_in_split :
-  forall h p l,
-    heap_get_struct p h = Some l ->
-    set_In p (fst (split h)).
-Proof.
-  Hint Resolve ptr_eq_dec.
-  induction h ; intros.
-  * inversion H.
-  * destruct a.
-    inversion H. clear H.
-    destruct (ptr_eq_dec p0 p).
-  - injection H1. intros. subst. clear H1.
-    assert (In (p, l) ((p, l) :: h)). crush.
-    specialize (in_split_l _ _ H).
-    crush.
-  - unfold heap_maps_struct in * ; fold heap_maps_struct in *.
-    unfold heap_get_struct in * ; fold heap_get_struct in *.
-    specialize (IHh p l).
-    intuition.
-    eapply in_split_l_ht; auto.
-Qed.
-
 Lemma sweep_safe :
   forall h p v ps,
     In p ps ->
@@ -850,6 +751,58 @@ Proof.
     - unfold heap_get_struct ; fold heap_get_struct.
       rewrite Heqs. auto.
     - auto.
+Qed.
+
+Lemma sweep_actually_sweeps :
+  forall h h' ptrs p vs,
+    sweep h ptrs = h' ->
+    heap_maps_struct h' p vs ->
+    set_In p ptrs /\ heap_maps_struct h p vs
+.
+Proof.
+  Hint Unfold heap_maps_struct heap_get_struct sweep.
+  induction h; intros.
+  * simpl in *.
+    repeat autounfold in *.
+    crush.
+  * simpl in *.
+    destruct a.
+    destruct (set_mem ptr_eq_dec p0 ptrs) eqn:?.
+    + intuition.
+      - eapply set_mem_correct1 in Heqb.
+        remember (ptr_eq_dec p p0).
+        inversion s; subst; auto.
+        unfold heap_maps_struct in H0.
+        unfold heap_get_struct in H0.
+        fold heap_get_struct in H0.
+        edestruct ptr_eq_dec; intuition.
+        eapply IHh; intuition.
+        apply H0.
+      - unfold heap_maps_struct.
+        unfold heap_get_struct.
+        fold heap_get_struct.
+        edestruct ptr_eq_dec.
+        ** subst.
+           unfold heap_maps_struct in H0.
+           unfold heap_get_struct in H0.
+           fold heap_get_struct in H0.
+           edestruct ptr_eq_dec in H0; intuition.
+        ** subst.
+           unfold heap_maps_struct in H0.
+           unfold heap_get_struct in H0.
+           fold heap_get_struct in H0.
+           edestruct ptr_eq_dec; intuition.
+           eapply (IHh (sweep h ptrs) ptrs p vs); intuition.
+    + intuition.
+      - apply (IHh h' ptrs p vs); intuition.
+      - eapply set_mem_complete1 in Heqb.
+        eapply (not_in_set_neq p p0 ptrs) in Heqb.
+        ** unfold heap_maps_struct.
+           unfold heap_get_struct.
+           fold heap_get_struct.
+           edestruct ptr_eq_dec; intuition.
+           apply (IHh h' ptrs p vs); intuition.
+        ** apply (IHh h' ptrs p vs); intuition.
 Qed.
 
 Lemma pointer_equivalence' :
@@ -908,6 +861,36 @@ Lemma value_equivalence :
     vs = vs'
 .
 Proof.
+  Hint Resolve heap_maps_struct_cons.
   intros.
-  
-Admitted.
+  unfold mark_sweep in H.
+  destruct (mark r h).
+  * assert (h' = nil).
+    clear H0.
+    - induction h.
+      + crush.
+      + unfold sweep in H.
+        fold sweep in H.
+        destruct a.
+        destruct (set_mem ptr_eq_dec p0 nil) eqn:?; crush. 
+    - destruct (sweep h nil).
+      + subst.
+        inversion H1.
+      + crush.
+  * dependent induction h.
+    - inversion H0.
+    - unfold sweep in H.
+      fold sweep in H.
+      destruct a eqn:?.
+      specialize (ptr_eq_dec p1 p); intros.
+      destruct H2; destruct (set_mem ptr_eq_dec p1 (p0 :: s)) eqn:?.
+      + subst.
+        unfold heap_maps_struct in *.
+        unfold heap_get_struct in *.
+        destruct (ptr_eq_dec p p); crush.
+      + apply set_mem_complete1 in Heqb.
+        apply (sweep_actually_sweeps h h' (p0 :: s) p vs') in H; crush.
+      + eapply IHh; eauto.
+        eapply (heap_maps_struct_cons (sweep h (p0 :: s)) p p1 l vs'); auto; subst; apply H1; auto.
+      + eapply IHh; eauto.
+Qed.

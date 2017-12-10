@@ -1,4 +1,4 @@
-Require Import List ListSet Equality CpdtTactics.
+Require Import Arith List ListSet Equality CpdtTactics.
 
 (* Lemmas about split *)
 Ltac split_solver l := subst; simpl; destruct (split l) eqn:?; crush.
@@ -118,7 +118,17 @@ Proof.
 Qed.
 
 (* Lemmas about sets *)
-Theorem set_add_noop :
+Lemma not_in_set_neq :
+  forall {A: Type} (p p': A) ptrs,
+    set_In p ptrs ->
+    ~ (set_In p' ptrs) ->
+    p <> p'
+.
+Proof.
+  crush.
+Qed.
+
+Lemma set_add_noop :
   forall {A: Type} (a: A) l eq_dec,
     set_In a l ->
     set_add eq_dec a l = l.
@@ -143,4 +153,38 @@ Proof.
     intros.
     specialize (H a2).
     assert (In a2 (a1 :: a0 :: b)). crush. intuition.
+Qed.
+
+(* currently only proved for nat, should extend to general type later if necessary *)
+Theorem set_union_nodup_inv_1 :
+  forall l l',
+    NoDup (set_union eq_nat_dec l l') ->
+    NoDup l.
+Proof.
+  intros l l'. revert l.
+  induction l'.
+  * intros.
+    induction l; crush.
+  * intros.
+    unfold set_union in * ; fold set_union in *.
+    specialize (IHl' l).
+    induction (((fix set_union (x y : set nat) {struct y} : set nat :=
+               match y with
+               | nil => x
+               | a1 :: y1 => set_add eq_nat_dec a1 (set_union x y1)
+               end) l l')).
+  - eapply IHl'. constructor.
+  - simpl in H.
+    destruct (eq_nat_dec a a0).
+    + eauto.
+    + inversion H. subst.
+      assert (NoDup s -> NoDup l).
+      ** intros.
+         assert (~ In a0 s).
+         unfold not. intros.
+         assert (In a0 (set_add eq_nat_dec a s)). eapply set_add_intro1; auto.
+         crush.
+         assert (NoDup (a0 :: s)). constructor ; auto.
+         intuition.
+      ** eauto.
 Qed.
