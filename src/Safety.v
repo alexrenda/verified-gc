@@ -2,6 +2,7 @@ Require Import Gc.Language Gc.Gc.
 
 Require Import List ListSet Equality CpdtTactics.
 
+(* All integers reachable from the same variable, address, and index. *)
 Definition equiv' (s1 s2: state) : Prop :=
   forall v p1 address p1' k i,
       roots_maps (roots s1) v p1 ->
@@ -62,7 +63,6 @@ Proof.
     apply H7.
 Qed.
 
-(* All integers reachable from the same variable, address, and index. *)
 Theorem gc_forward_safety :
   forall st, equiv' st (gc st)
 .
@@ -86,9 +86,17 @@ Proof.
         eapply heap_get_implies_heap_maps; crush.
 Qed.
 
-(* All integers reachable from the same variable, address, and index. *)
+Theorem gc_backward_safety :
+  forall st, equiv' (gc st) st
+.
+Proof.
+Admitted.
+
 Theorem gc_safety :
   forall st, equiv st (gc st)
 .
 Proof.
-Admitted.
+  Hint Resolve gc_forward_safety gc_backward_safety.
+  Hint Unfold equiv.
+  crush.
+Qed.
