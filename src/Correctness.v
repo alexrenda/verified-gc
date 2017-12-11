@@ -370,6 +370,20 @@ Ltac apply_eval_safety :=
     rewrite x in H2 ; discriminate
   end.
 
+Lemma fresh_heap_ptr_fresh :
+  forall h,
+    heap_get_struct (fresh_heap_ptr h) h = None.
+Proof.
+Admitted.
+
+Lemma fresh_address :
+  forall address h p p' v,
+    addresses (cons (fresh_heap_ptr h, v) h) p address p' ->
+    addresses h p address p'.
+Proof.
+Admitted.
+
+
 Theorem equiv_class_step_2 :
   forall s1 s2 c s1' s2',
     handle_small_step s1 c = Some s1' ->
