@@ -125,8 +125,7 @@ Proof.
   exists struct1.
   intuition.
   * subst; eapply pointer_equivalence; eauto.
-  * (* specialize (heap_maps_implies_heap_get _ _ _ _ H1); intros. *)
-    unfold heap_maps_struct in H1.
+  * unfold heap_maps_struct in H1.
     specialize address_maps_to_value with (heap (gc st)) p1 p1' address; intros.
     assert (addresses (heap (gc st)) p1 address p1').
     - subst; eapply pointer_equivalence; eauto.
