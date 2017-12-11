@@ -351,16 +351,20 @@ Record state := mkState {
                     output: output_t;
                   }.
 
+Fixpoint max_heap (h: heap_t) : ptr :=
+  match h with
+  | List.nil => 0
+  | (p,_)::t =>
+    if le_gt_dec p (max_heap t) then
+      (max_heap t)
+    else
+      p
+  end.
+
+
 (** fresh heap pointer is 1 more than the maximum heap ptr *)
 Definition fresh_heap_ptr (h: heap_t) : ptr :=
-  let max := fun (p1 p2:ptr) => if le_gt_dec p1 p2 then p2 else p1 in
-  let fix max_heap (h': heap_t) :=
-    match h' with
-    | List.nil => 0
-    | (p,_)::t => max p (max_heap t)
-    end
-  in
-  (max_heap h) + 1.
+  S (max_heap h).
 
 
 Definition eval_valexp (r: roots_t) (h: heap_t) (v: valexp) : option val :=
