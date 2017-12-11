@@ -54,6 +54,82 @@ Definition roots_unset (r: roots_t) (v: var) : roots_t :=
 Definition roots_maps (r: roots_t) (v: var) (p: ptr) : Prop :=
   List.In (v,p) r.
 
+
+
+Lemma roots_maps_get :
+  forall r v p,
+    roots_maps r v p ->
+    roots_get v r = Some p.
+Proof.
+Admitted.
+
+Lemma roots_get_maps :
+  forall r v p,
+    roots_get v r = Some p ->
+    roots_maps r v p.
+Proof.
+Admitted.
+
+Lemma roots_maps_uniq :
+  forall r v p p',
+    roots_maps r v p ->
+    roots_maps r v p' ->
+    p = p'.
+Proof.
+Admitted.
+
+Lemma roots_unset_1 :
+  forall r v p,
+    roots_maps (roots_unset r v) v p ->
+    False.
+Proof.
+Admitted.
+
+Lemma roots_unset_2 :
+  forall r v v' p,
+    v' <> v ->
+    roots_maps r v p ->
+    roots_maps (roots_unset r v') v p.
+Proof.
+Admitted.
+
+Lemma roots_unset_3 :
+  forall r v v' p,
+    v' <> v ->
+    roots_maps (roots_unset r v') v p ->
+    roots_maps r v p.
+Proof.
+Admitted.
+
+Lemma roots_set_1 :
+  forall r v p p1,
+    roots_maps (roots_set r v p) v p1 ->
+    p = p1.
+Proof.
+Admitted.
+
+Lemma roots_set_2 :
+  forall r v p,
+    roots_maps (roots_set r v p) v p.
+Proof.
+Admitted.
+
+Lemma roots_set_3 :
+  forall r v v1 p p1,
+    v <> v1 ->
+    roots_maps (roots_set r v p) v1 p1 ->
+    roots_maps r v1 p1.
+Proof.
+Admitted.
+
+Lemma roots_set_4 :
+  forall r v v1 p p1,
+    v <> v1 ->
+    roots_maps r v1 p1 ->
+    roots_maps (roots_set r v p) v1 p1.
+Proof.
+Admitted.
+
 Definition output_t := list nat.
 
 Fixpoint heap_get_struct (p:ptr) (h:heap_t) : option (list val) :=
