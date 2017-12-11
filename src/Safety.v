@@ -138,11 +138,80 @@ Proof.
         auto.
 Qed.
 
+
+Lemma sweep_maps_forward :
+  forall r h p v,
+    heap_maps_struct (mark_sweep r h) p v ->
+    heap_maps_struct h p v.
+Proof.
+  intros.
+  unfold mark_sweep in *.
+  remember (mark r h) as marked. clear Heqmarked.
+
+  induction h. crush.
+
+  unfold heap_maps_struct in * ; fold heap_maps_struct in *.
+  unfold sweep in * ; fold sweep in *.
+  destruct a.
+  edestruct set_mem eqn:? ; destruct (ptr_eq_dec p p0) eqn:? ;
+    unfold heap_get_struct in * ; fold heap_get_struct in *.
+  * subst.
+    edestruct ptr_eq_dec ; eauto.
+  * edestruct ptr_eq_dec ; eauto.
+  * intuition.
+    edestruct ptr_eq_dec ; eauto.
+    subst.
+    contradict H.
+    - unfold not. intros.
+      clear - Heqb H.
+      induction h. crush.
+      unfold sweep in * ; fold sweep in *.
+      destruct a.
+      destruct (ptr_eq_dec p p0).
+      + subst.
+        rewrite Heqb in H.
+        intuition.
+      + destruct (set_mem ptr_eq_dec p marked) ;
+         unfold heap_get_struct in * ; fold heap_get_struct in *.
+        ** destruct (ptr_eq_dec p p0) ; crush.
+        ** intuition.
+    - subst.
+      discriminate.
+  * intuition.
+    destruct (ptr_eq_dec p0 p) eqn:?.
+    crush.
+    crush.
+Qed.
+
 Theorem gc_backward_safety :
   forall st, equiv' (gc st) st
 .
 Proof.
-Admitted.
+  unfold equiv'.
+  intros.
+  exists p1, p1', struct1.
+  crush.
+  * clear H.
+    dependent induction address generalizing p1.
+    - inversion H0. clear H0. destructo. subst.
+      constructor.
+      exists x.
+      eapply sweep_maps_forward ; eauto.
+    - inversion H0. clear H0. destructo. subst.
+      specialize (IHaddress p' p1' struct1).
+      intuition.
+      eapply FollowAddresses.
+      + unfold heap_maps in *.
+        unfold heap_get in *.
+        destruct (heap_get_struct p1 (mark_sweep (roots st) (heap st))) eqn:?.
+        Focus 2. discriminate.
+        specialize (sweep_maps_forward _ _ _ _ Heqo).
+        intros.
+        rewrite H.
+        crush.
+      + apply H0.
+  * eapply sweep_maps_forward ; eauto.
+Qed.
 
 Theorem gc_safety :
   forall st, equiv st (gc st)
