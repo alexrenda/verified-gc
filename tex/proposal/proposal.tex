@@ -1,0 +1,84 @@
+\documentclass{article}
+\usepackage[top=1in,right=1in,bottom=1in,left=1in]{geometry}
+\usepackage[utf8]{inputenc}
+\usepackage{titlesec}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{parskip}
+\usepackage{url}
+\usepackage{syntax}
+\usepackage{xspace}
+
+% Language
+\newcommand{\imp}{\textsc{Imp}\xspace}
+\newcommand{\comskip}{\texttt{skip}\xspace}
+\newcommand{\comgc}{\texttt{GC}\xspace}
+\newcommand{\comif}[3]{\texttt{if}\ #1\  \texttt{then}\ \{#2\}\ \texttt{else}\ \{#3\}\xspace}
+\newcommand{\comprint}[1]{\texttt{print}\ #1\xspace}
+\newcommand{\comseq}[2]{#1;\ #1\xspace}
+
+\newcommand{\booltrue}{\texttt{true}}
+\newcommand{\boolfalse}{\texttt{false}}
+
+
+\title{Final Project: Garbage Collection Proposal}
+\author{Alex Renda (adr74), Matthew Li (ml927)}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\section{Introduction}
+Our project is to implement and verify a garbage collection algorithm. We plan to prove two properties: correctness, that running the GC has no effect on the ``result'' of the program; and completeness, that the GC collects ``everything it can". 
+
+For ``result'' we will show that the result produced by the program is equivalent, given that the program is well formed. To do this we will add a ``print" command as our programs side-effect for the trace.
+
+We have not completely defined ``everything it can" yet. Optimally we would say that it collects all variables which will not be used, but this is obviously impossible (once we add in while, at least). We plan to initially start out by saying that we collect all variables inaccessible from the current scope -- this should be a conservative but valid metric, although we will be open to exploring other definitions.
+
+\section{Simple Language}
+Our garbage collection algorithm would operate on a simple language much like the ones discussed in class. We plan to implement a modified version of \imp with a \comgc command for explicitly running the garbage collection algorithm. For now our heap will just be a map of pointers to natural numbers. Constants automatically create a new allocation on the heap, and all variables are actually pointers to heap locations.
+
+We plan to alter the semantics so that \texttt{if} statements have a block scope for variables initially defined within. This means also keeping a stack to keep track of the scope when variables are first defined.
+
+Our correctness proof will be along the lines of ``replacing \comgc with \comskip does not change the result of our program'' and our completeness proof will be along the lines of ``after \comgc, there are no pointers in the heap to objects that cannot be referenced from the current scope''.
+
+Below is the commands that we will allow:
+\begin{grammar}
+<Com> ::= \comskip
+\alt \comseq{\synt{Com}}{\synt{Com}}
+\alt \comif{\synt{Bool}}{\synt{Com}}{\synt{Com}}
+\alt \comprint{\synt{Exp}}
+\alt $x$ $\leftarrow$ <Exp>
+\alt \comgc
+
+<Exp> ::= $n$
+\alt $x$
+\alt <Exp> + <Exp>
+
+<Bool> ::= \booltrue
+\alt \boolfalse
+\alt <Bool> $\land$ <Bool>
+\alt <Bool> $\lor$ <Bool>
+\alt <Exp> ?= <Exp>
+\end{grammar}
+
+There is no way to reference the pointer to a heap variable directly, like Java, since that would impact our ability to perform garbage collection. Instead, operations all automatically allocate a new heap location and set the value of that location. Semantically, this is similar to if Java used \texttt{Integer} instead of \texttt{int} for everything. We chose this method since we expect it will create a lot of orphaned heap locations. 
+
+\section{Garbage Collection}
+The specific algorithm we are thinking of is mark and sweep. This is one of the simplest garbage collection algorithms so we felt like it would be a good starting point.
+
+\section{Extensions}
+We have a few other extensions planned for our project if we are able to implement the above in time.
+
+\subsection{Structs}
+Initially the only values allowed in our heap are natural numbers for simplicity. However, this means garbage collection is not very interesting since reference chains and circular references cannot exist. We would like to add support for recursive structs to our language to make garbage collection more interesting.
+
+\subsection{While}
+In our initial implementation we chose not to include while loops, as they complicate the language and proofs but do not immediately impact our garbage collection algorithm. However, we would like to add back while loops, with a corresponding block scope, later in our project so that our language is Turing complete. Together with structs, this allows for unbounded size recursive pointer chains, which should be much more interesting to analyze and reason about.
+
+\subsection{Other GC}
+If given the time, we plan to extend our algorithm to implement mark-sweep-compact, or try out other more complex algorithms, like generational garbage collection, or concurrent GC.
+
+\end{document}
