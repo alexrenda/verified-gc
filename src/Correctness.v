@@ -198,9 +198,11 @@ Proof.
       subst.
       inversion H6. subst.
       destructo.
+      unfold struct_equiv in H8.
+      destructo.
       specialize (heap_set_fails_implies_no_exists_heap_maps_struct _ _ _ _ Heqo2).
       intros.
-      contradiction H10.
+      contradiction H11.
       exists x3. auto.
     - contradict Heqo1. unfold not. intros.
       clear Heqo0.

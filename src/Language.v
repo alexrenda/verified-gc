@@ -149,6 +149,14 @@ match heap_get_struct p h with
 | Some hv => List.nth_error hv k
 end.
 
+Definition heap_maps (h: heap_t) (p: ptr) (k: nat) (v: val) : Prop :=
+  heap_get p k h = Some v
+.
+
+Definition heap_maps_struct (h: heap_t) (p: ptr) (vs: list val) : Prop :=
+  heap_get_struct p h = Some vs
+.
+
 Fixpoint set_nth {A: Type} (n: nat) (v: A) (l: list A) : option (list A) :=
   match n, l with
   | 0, h::t => Some (v::t)
@@ -177,18 +185,45 @@ match h with
 end
 .
 
+Ltac funfold name :=
+  unfold name in * ; fold name in *.
+
 Lemma heap_sets_implies_exists_heap_maps_struct :
   forall h h' p k v,
     heap_set_k h p k v = Some h' ->
     exists vs, heap_maps_struct h p vs.
 Proof.
-Admitted.
+  induction h. crush.
+  intros.
+  funfold heap_set_k.
+  destruct a.
+  funfold heap_maps_struct.
+  funfold heap_get_struct.
+  destruct (ptr_eq_dec p0 p).
+  * eauto.
+  * destruct (heap_set_k h p k v) eqn:?.
+    - crush.
+      specialize (IHh h0 p k v).
+      intuition.
+    - discriminate.
+Qed.
 
 Lemma heap_set_fails_implies_no_exists_heap_maps_struct :
   forall h p k v,
     heap_set_k h p k v = None ->
     ~exists vs, heap_maps_struct h p vs.
 Proof.
+  induction h ; unfold not ; intros.
+  * funfold heap_maps_struct.
+    funfold heap_get_struct.
+    destruct H0.
+    discriminate.
+  * funfold heap_set_k.
+    destruct a.
+    destruct (ptr_eq_dec p0 p) eqn:?.
+    - destruct (set_nth k v l) eqn:?.
+      discriminate.
+      destruct H0.
 Admitted.
 
 Lemma heap_sets_implies_heap_maps_1 :
@@ -216,45 +251,6 @@ Lemma heap_sets_implies_heap_maps_3 :
 Proof.
 Admitted.
 
-
-Lemma heap_set_ptr_no_change : forall h h0 p p1 k v p0 l l',
-  heap_set_k ((p, l) :: h) p1 k v = Some ((p0, l') :: h0) ->
-  p = p0.
-Proof.
-  intros.
-  inversion H.
-  destruct (ptr_eq_dec p p1) in H1.
-  * destruct (set_nth k v l) in H1; crush.
-  * destruct (heap_set_k h p1 k v) in H1; crush.
-Qed.
-
-Lemma heap_set_first_neq : forall h h0 p k v p0 l l',
-  p0 <> p ->
-  heap_set_k ((p0, l) :: h) p k v = Some ((p0, l') :: h0) ->
-  heap_set_k h p k v = Some h0.
-Proof.
-  intros.
-  inversion H0.
-  destruct (ptr_eq_dec p0 p).
-  * crush.
-  * destruct (heap_set_k h p k v); crush.
-Qed.
-
-Lemma heap_get_first_neq : forall h p k v p0 l,
-  p0 <> p ->
-  heap_get p k ((p0, l) :: h) = Some v ->
-  heap_get p k h = Some v.
-Proof.
-  intros.
-  unfold heap_get in H0.
-  unfold heap_get_struct in H0.
-  destruct p.
-  * fold heap_get_struct in H0.
-    destruct (ptr_eq_dec p0 0) in H0; intuition.
-  * fold heap_get_struct in H0.
-    destruct (ptr_eq_dec p0 (S p)) in H0; intuition.
-Qed.
-
 Lemma set_nth_sets : forall {A: Type} k v (l l0: list A),
   set_nth k v l = Some l0 ->
   List.nth_error l0 k = Some v.
@@ -269,14 +265,6 @@ Proof.
       + crush; eauto.
       + discriminate.
 Qed.
-
-Definition heap_maps (h: heap_t) (p: ptr) (k: nat) (v: val) : Prop :=
-  heap_get p k h = Some v
-.
-
-Definition heap_maps_struct (h: heap_t) (p: ptr) (vs: list val) : Prop :=
-  heap_get_struct p h = Some vs
-.
 
 (* Must be proven for liveness *)
 Theorem heap_maps_struct_indexable : forall p h vs,
