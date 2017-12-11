@@ -177,6 +177,46 @@ match h with
 end
 .
 
+Lemma heap_sets_implies_exists_heap_maps_struct :
+  forall h h' p k v,
+    heap_set_k h p k v = Some h' ->
+    exists vs, heap_maps_struct h p vs.
+Proof.
+Admitted.
+
+Lemma heap_set_fails_implies_no_exists_heap_maps_struct :
+  forall h p k v,
+    heap_set_k h p k v = None ->
+    ~exists vs, heap_maps_struct h p vs.
+Proof.
+Admitted.
+
+Lemma heap_sets_implies_heap_maps_1 :
+  forall h h' p k v,
+    heap_set_k h p k v = Some h' ->
+    heap_maps h' p k v.
+Proof.
+Admitted.
+
+Lemma heap_sets_implies_heap_maps_2 :
+  forall h h' p p' k k' v v',
+    heap_set_k h p k v = Some h' ->
+    (p <> p' \/ k <> k') ->
+    heap_maps h  p' k' v' ->
+    heap_maps h' p' k' v'.
+Proof.
+Admitted.
+
+Lemma heap_sets_implies_heap_maps_3 :
+  forall h h' p p' k k' v v',
+    heap_set_k h p k v = Some h' ->
+    (p <> p' \/ k <> k') ->
+    heap_maps h' p' k' v' ->
+    heap_maps h  p' k' v'.
+Proof.
+Admitted.
+
+
 Lemma heap_set_ptr_no_change : forall h h0 p p1 k v p0 l l',
   heap_set_k ((p, l) :: h) p1 k v = Some ((p0, l') :: h0) ->
   p = p0.
