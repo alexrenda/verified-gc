@@ -108,15 +108,6 @@ Definition add_vals (h: heap_t) (p: ptr) : set ptr :=
     | None => nil
     end.
 
-(*
-
-
-Lemma app_nil_l_h :
-  forall {A: Type},
-
-: forall (A : Type) (l : list A), nil ++ l = l
-*)
-
 Theorem add_vals_subset :
   forall h p p',
     set_In p' (add_vals h p) ->
@@ -872,7 +863,7 @@ Proof.
       + unfold sweep in H.
         fold sweep in H.
         destruct a.
-        destruct (set_mem ptr_eq_dec p0 nil) eqn:?; crush. 
+        destruct (set_mem ptr_eq_dec p0 nil) eqn:?; crush.
     - destruct (sweep h nil).
       + subst.
         inversion H1.
