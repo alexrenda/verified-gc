@@ -434,6 +434,17 @@ Definition update_heap (r: roots_t) (h: heap_t) (lhv: var) (lhidx: nat) (rhv: va
 Notation "x <-- A ; B" := (match A with | Some x => B | None => None end)
                             (right associativity, at level 84).
 
+Fixpoint option_eval (r: roots_t) (h: heap_t) (vals: list valexp) :=
+  match vals with
+  | List.nil => Some List.nil
+  | vexp::t =>
+    match eval_valexp r h vexp, option_eval r h t with
+    | Some v, Some rest =>
+      Some (List.cons v rest)
+    | _, _ => None
+    end
+  end.
+
 Definition handle_small_step (s: state) (c: com) : option state :=
   let r := roots s in
   let h := heap s in
@@ -442,11 +453,7 @@ Definition handle_small_step (s: state) (c: com) : option state :=
   | New var vals =>
     let p := fresh_heap_ptr h in
     let r' := roots_set r var p in
-    match (List.fold_right (fun vexp acc =>
-                              match acc, eval_valexp r h vexp with
-                              | Some vs, Some v => Some (v::vs)
-                              | _, _ => None
-                              end) (Some List.nil) vals) with
+    match option_eval r h vals with
     | Some vals =>
       let h' := (p, vals)::h in
       Some (mkState r' h' o)
