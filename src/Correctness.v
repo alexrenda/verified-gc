@@ -1,4 +1,4 @@
-Require Import Gc.Language Gc.Gc Gc.Safety.
+Require Import Gc.Language Gc.Gc Gc.Safety Gc.Util.
 Require Import Equality CpdtTactics.
 
 Lemma eval_valexp_safety_int :
@@ -333,17 +333,100 @@ Ltac apply_eval_safety :=
     rewrite x in H2 ; discriminate
   end.
 
-Lemma fresh_heap_ptr_fresh :
+Lemma gt_not_in :
+  forall h p,
+    p > max_heap h ->
+    ~ List.In p (fst (List.split h)).
+Proof.
+  induction h.
+  crush.
+  intros.
+  destruct a.
+  destruct (ptr_eq_dec p p0).
+  * subst.
+    funfold max_heap.
+    edestruct Compare_dec.le_gt_dec.
+    - crush.
+    - crush.
+  * funfold max_heap.
+    edestruct Compare_dec.le_gt_dec.
+    - specialize (IHh p). intuition.
+      specialize (in_split_l_ht h p p0 l ptr_eq_dec).
+      intros.
+      destructo.
+      intuition.
+    - specialize (IHh p).
+      assert (p > max_heap h).
+      crush.
+      specialize (in_split_l_ht h p p0 l ptr_eq_dec).
+      intros.
+      destructo.
+      intuition.
+Qed.
+
+Lemma fresh_heap_ptr_fresh_1 :
+  forall h,
+    ~ List.In (fresh_heap_ptr h) (fst (List.split h)).
+Proof.
+  unfold not.
+  intros.
+  assert ((fresh_heap_ptr h) > max_heap h).
+  crush.
+  eapply gt_not_in ; eauto.
+Qed.
+
+Lemma fresh_heap_ptr_fresh_2 :
   forall h,
     heap_get_struct (fresh_heap_ptr h) h = None.
 Proof.
-Admitted.
+  intros.
+  specialize (fresh_heap_ptr_fresh_1 h). intros.
+  remember (fresh_heap_ptr h) as p.
+  clear Heqp.
+  induction h. crush.
+  funfold heap_get_struct.
+  destruct a.
+  destruct (ptr_eq_dec p0 p) eqn:?.
+  * subst.
+    contradiction H.
+    eapply in_split_l_ht ; eauto.
+  * assert (~ List.In p (fst (List.split h))).
+    -  unfold not.
+       intros.
+       contradiction H.
+       eapply in_split_l_ht ; eauto.
+    - intuition.
+Qed.
 
 Lemma fresh_address :
   forall address h p p' v,
     addresses (cons (fresh_heap_ptr h, v) h) p address p' ->
+    p <> fresh_heap_ptr h ->
     addresses h p address p'.
 Proof.
+  induction address ; intros ; inversion H ; clear H ; destructo ; subst.
+  * unfold heap_maps_struct in H.
+    funfold heap_get_struct.
+    edestruct ptr_eq_dec.
+    - crush.
+    - constructor.
+      exists x.
+      auto.
+  * funfold heap_maps.
+    funfold heap_get.
+    destruct (heap_get_struct p ((fresh_heap_ptr h, v) :: h)%list) eqn:?.
+    Focus 2. discriminate.
+    funfold heap_get_struct.
+    destruct (ptr_eq_dec (fresh_heap_ptr h) p).
+    - crush.
+    - specialize (IHaddress h p'0 p' v).
+      eapply FollowAddresses.
+      + unfold heap_maps.
+        unfold heap_get.
+        rewrite Heqo.
+        apply H5.
+      + crush.
+        admit.
 Admitted.
 
 
@@ -363,7 +446,7 @@ Proof.
     destruct (option_eval (roots s2) (heap s2) l) eqn:?.
     Focus 2. discriminate.
     split. crush.
-    crush ; admit.
+    admit. (* TODO: arguments about freshness *)
   * destruct (eval_valexp (roots s1) (heap s1) v0) eqn:?.
     Focus 2. discriminate.
     destruct (update_heap (roots s1) (heap s1) v n v1) eqn:?.
