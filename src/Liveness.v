@@ -106,12 +106,12 @@ Theorem gc_liveness :
       addresses h p' address p
 .
 Proof.
-  Hint Unfold gc collect.
+  Hint Unfold gc compact.
   Hint Resolve mark_sweep_liveness_2.
   intros.
   subst.
   unfold gc in *.
-  unfold collect in *.
+  unfold compact in *.
   unfold roots in *.
   unfold heap in *.
   eapply mark_sweep_liveness_2; eauto.

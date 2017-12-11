@@ -520,11 +520,11 @@ Inductive execution : state -> list com -> output_t -> Prop :=
 
 
 Theorem execution_output_exists :
-  forall com st st' out,
-    execution st com out ->
+  forall coms st st' out,
+    execution st coms out ->
     equiv st st' ->
     exists out',
-      execution st' com out'.
+      execution st' coms out'.
 Proof.
   intros until 1.
   dependent induction H generalizing st'.
@@ -553,9 +553,9 @@ Proof.
 Qed.
 
 Theorem execution_output_equiv :
-  forall com st st' out out',
-    execution st com out ->
-    execution st' com out' ->
+  forall coms st st' out out',
+    execution st coms out ->
+    execution st' coms out' ->
     equiv st st' ->
     out = out'
 .
