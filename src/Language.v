@@ -54,8 +54,6 @@ Definition roots_unset (r: roots_t) (v: var) : roots_t :=
 Definition roots_maps (r: roots_t) (v: var) (p: ptr) : Prop :=
   List.In (v,p) r.
 
-
-
 Lemma roots_maps_get :
   forall r v p,
     roots_maps r v p ->
@@ -390,9 +388,24 @@ Definition max_heap (h: heap_t) : ptr :=
     (max_heap_idx h)
 .
 
-(** fresh heap pointer is 1 more than the maximum heap ptr *)
-Definition fresh_heap_ptr (h: heap_t) : ptr :=
-  S (max_heap h).
+Fixpoint max_root (r: roots_t) : ptr :=
+  match r with
+  | List.nil => 0
+  | (_,p)::t =>
+    if le_gt_dec p (max_root t) then
+      (max_root t)
+    else
+      p
+  end.
+
+Definition max_state (s: state) :=
+  if le_gt_dec (max_heap (heap s)) (max_root (roots s)) then
+    (max_heap (heap s))
+  else
+    (max_root (roots s)).
+
+Definition fresh_ptr (s: state) : ptr :=
+  S (max_state s).
 
 
 Definition eval_valexp (r: roots_t) (h: heap_t) (v: valexp) : option val :=
@@ -435,7 +448,7 @@ Definition handle_small_step (s: state) (c: com) : option state :=
   let o := output s in
   match c with
   | New var vals =>
-    let p := fresh_heap_ptr h in
+    let p := fresh_ptr s in
     let r' := roots_set r var p in
     match option_eval r h vals with
     | Some vals =>
