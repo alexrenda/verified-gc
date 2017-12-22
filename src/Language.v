@@ -351,16 +351,44 @@ Record state := mkState {
                     output: output_t;
                   }.
 
-Fixpoint max_heap (h: heap_t) : ptr :=
+Fixpoint max_heap_idx (h: heap_t) : ptr :=
   match h with
   | List.nil => 0
   | (p,_)::t =>
-    if le_gt_dec p (max_heap t) then
-      (max_heap t)
+    if le_gt_dec p (max_heap_idx t) then
+      (max_heap_idx t)
     else
       p
   end.
 
+Fixpoint max_struct_val (l: list val) : ptr :=
+  match l with
+  | List.nil => 0
+  | (Int _) :: t => max_struct_val t
+  | (Pointer p) :: t =>
+    if le_gt_dec p (max_struct_val t) then
+      (max_struct_val t)
+    else
+      p
+  end.
+
+
+Fixpoint max_heap_val (h: heap_t) : ptr :=
+  match h with
+  | List.nil => 0
+  | (_,v)::t =>
+    if le_gt_dec (max_struct_val v) (max_heap_val t) then
+      (max_heap_val t)
+    else
+      (max_struct_val v)
+  end.
+
+Definition max_heap (h: heap_t) : ptr :=
+  if le_gt_dec (max_heap_idx h) (max_heap_val h) then
+    (max_heap_val h)
+  else
+    (max_heap_idx h)
+.
 
 (** fresh heap pointer is 1 more than the maximum heap ptr *)
 Definition fresh_heap_ptr (h: heap_t) : ptr :=
