@@ -400,9 +400,10 @@ Fixpoint max_root (r: roots_t) : ptr :=
 
 Definition max_state (s: state) :=
   if le_gt_dec (max_heap (heap s)) (max_root (roots s)) then
-    (max_heap (heap s))
+    (max_root (roots s))
   else
-    (max_root (roots s)).
+    (max_heap (heap s))
+.
 
 Definition fresh_ptr (s: state) : ptr :=
   S (max_state s).
